@@ -1,0 +1,15 @@
+# Android local properties — machine-specific + secrets
+#
+# Copy this file to local.properties and fill in your values.
+# local.properties is git-ignored and must NEVER be committed.
+#
+# ── Android SDK path ──────────────────────────────────────────────────────────
+# Windows: C:\\Users\\<you>\\AppData\\Local\\Android\\sdk
+# macOS:   /Users/<you>/Library/Android/sdk
+# Linux:   /home/<you>/Android/Sdk
+sdk.dir=C:\\Users\\YOUR_USERNAME\\AppData\\Local\\Android\\sdk
+
+# ── Truecaller SDK (Admin app) ────────────────────────────────────────────────
+# Get your Admin Client ID from https://sdk-console-noneu.truecaller.com
+# Must match the app registered for com.bajaru.bajaru_admin_frontend
+TRUECALLER_ADMIN_CLIENT_ID=your_admin_truecaller_client_id_here

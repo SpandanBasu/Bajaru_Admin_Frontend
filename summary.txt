@@ -1,0 +1,33 @@
+Here's a summary of what was built:
+
+  ---
+  bajaru_admin_frontend — 36 Dart files, 0 analyzer issues
+
+  lib/
+  ├── main.dart                          ← ProviderScope + AdminApp
+  ├── app.dart                           ← MaterialApp + IndexedStack shell
+  ├──   core/
+  │   ├── constants/  app_colors, app_text_styles, app_dimensions
+  │   └── models/     dashboard_stats, procurement_item, batch_order,
+  │                   route_batch, rider, catalog_product
+  ├── features/
+  │   ├── dashboard/  provider + screen
+  │   ├── procurement/ provider + screen
+  │   ├── orders/     provider + screen
+  │   ├── riders/     provider + screen
+  │   └── catalog/    provider + screen
+  └── widgets/
+      ├── common/     AdminAppBar, AdminBottomNav, StatCard,
+      │               SectionHeader, StatusBadge
+      ├── dashboard/  PhaseBadge, CompletedDeliveryTile
+      ├── procurement/ ProcurementSummaryBar, ProcurementItemTile
+      ├── orders/     OrderCard (with PackItemRow)
+      ├── riders/     ShiftTimerCard (live countdown), RouteBatchCard,
+      │               RiderTile
+      └── catalog/    CatalogProductTile
+
+  Key architectural decisions:
+  - IndexedStack nav — screens stay alive when switching tabs
+  - StateNotifierProvider per feature — clean separation of state and UI
+  - Derived providers (filteredCatalogProvider, ordersTabCountProvider, etc.) for computed state
+  - All widgets are decoupled — screens only import providers and widget files, never other screens
