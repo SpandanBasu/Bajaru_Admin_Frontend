@@ -73,6 +73,8 @@ class DeliveryOrder {
   final String? proofImageUrl;   // signed Supabase URL for proof photo
   final double? customerRating;  // 4.0
   final DateTime? placedAt;
+  final String? rejectionReason;
+  final DateTime? rejectedAt;
 
   const DeliveryOrder({
     required this.id,
@@ -101,6 +103,8 @@ class DeliveryOrder {
     this.proofImageUrl,
     this.customerRating,
     this.placedAt,
+    this.rejectionReason,
+    this.rejectedAt,
   });
 
   int get total => amount + deliveryFee;
@@ -163,6 +167,10 @@ class DeliveryOrder {
           json['proof_image_url'] as String?,
       customerRating: null, // not stored in backend yet
       placedAt: placedAt,
+      rejectionReason: json['rejectionReason'] as String?,
+      rejectedAt: json['rejectedAt'] != null
+          ? DateTime.parse(json['rejectedAt'] as String).toLocal()
+          : null,
     );
   }
 }

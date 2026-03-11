@@ -47,7 +47,14 @@ class CatalogNotifier extends StateNotifier<AsyncValue<List<CatalogProduct>>> {
     }
   }
 
-  void toggleAvailability(String productId, String pincodeCode) {
+  /// Optimistically flips the availability toggle in local state,
+  /// then persists the change via the backend.
+  /// Reverts to the original state if the API call fails.
+  Future<void> toggleAvailability(String productId, String pincodeCode) async {
+    // Capture original state for rollback
+    final originalState = state;
+
+    // Optimistic local update
     state.whenData((products) {
       state = AsyncValue.data(products.map((p) {
         if (p.id != productId) return p;
@@ -59,14 +66,26 @@ class CatalogNotifier extends StateNotifier<AsyncValue<List<CatalogProduct>>> {
         );
       }).toList());
     });
+
+    // Persist to backend; rollback on failure
+    try {
+      await _service.toggleInventoryAvailability(productId, pincodeCode);
+    } catch (_) {
+      state = originalState;
+      rethrow;
+    }
   }
 
-  void updateStockAndPrice(
+  Future<void> updateStockAndPrice(
     String productId,
     String pincodeCode,
     double newStock,
     double newPrice,
-  ) {
+    double newMrp,
+  ) async {
+    final originalState = state;
+
+    // Optimistic local update
     state.whenData((products) {
       state = AsyncValue.data(products.map((p) {
         if (p.id != productId) return p;
@@ -74,10 +93,28 @@ class CatalogNotifier extends StateNotifier<AsyncValue<List<CatalogProduct>>> {
         if (data == null) return p;
         return p.copyWith(
           pincodeData: Map.from(p.pincodeData)
-            ..[pincodeCode] = data.copyWith(stock: newStock, price: newPrice),
+            ..[pincodeCode] = data.copyWith(
+              stock: newStock,
+              price: newPrice,
+              mrp: newMrp,
+            ),
         );
       }).toList());
     });
+
+    // Persist to backend; rollback on failure
+    try {
+      await _service.updateInventory(
+        productId,
+        pincodeCode,
+        newStock.round(),
+        newMrp,
+        newPrice,
+      );
+    } catch (_) {
+      state = originalState;
+      rethrow;
+    }
   }
 }
 

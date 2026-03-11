@@ -57,15 +57,18 @@ class CatalogProduct {
     for (final inv in invList) {
       final m = inv as Map<String, dynamic>;
       final pincode = m['pincode'] as String? ?? '';
+      if (pincode.isEmpty) continue;
       final invActive = m['active'] as bool? ?? true;
-      if (pincode.isEmpty || !invActive) continue;
       final qty = (m['quantityAvailable'] as num?)?.toDouble() ?? 0;
-      final price = (m['sellingPrice'] as num?)?.toDouble() ?? (m['mrp'] as num?)?.toDouble() ?? 0;
+      final mrp = (m['mrp'] as num?)?.toDouble() ?? 0;
+      final price = (m['sellingPrice'] as num?)?.toDouble() ?? mrp;
       pincodeData[pincode] = PincodeProductData(
         price: price,
+        mrp: mrp,
         priceUnit: packageSize,
         stock: qty,
-        isAvailable: qty > 0,
+        // isAvailable = active toggle AND has stock
+        isAvailable: invActive && qty > 0,
       );
     }
     return CatalogProduct(

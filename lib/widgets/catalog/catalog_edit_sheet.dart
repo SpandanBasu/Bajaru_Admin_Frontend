@@ -9,7 +9,7 @@ import '../../core/constants/app_dimensions.dart';
 class CatalogEditSheet extends StatefulWidget {
   final CatalogProduct product;
   final Pincode pincode;
-  final void Function(double newStock, double newPrice) onSave;
+  final void Function(double newStock, double newPrice, double newMrp) onSave;
 
   const CatalogEditSheet({
     super.key,
@@ -25,6 +25,7 @@ class CatalogEditSheet extends StatefulWidget {
 class _CatalogEditSheetState extends State<CatalogEditSheet> {
   late final TextEditingController _stockCtrl;
   late final TextEditingController _priceCtrl;
+  late final TextEditingController _mrpCtrl;
 
   PincodeProductData? get _data => widget.product.dataFor(widget.pincode.code);
 
@@ -56,25 +57,30 @@ class _CatalogEditSheetState extends State<CatalogEditSheet> {
     _priceCtrl = TextEditingController(
       text: data?.price.toStringAsFixed(0) ?? '',
     );
+    _mrpCtrl = TextEditingController(
+      text: data?.mrp.toStringAsFixed(0) ?? '',
+    );
   }
 
   @override
   void dispose() {
     _stockCtrl.dispose();
     _priceCtrl.dispose();
+    _mrpCtrl.dispose();
     super.dispose();
   }
 
   void _save() {
     final newStock = double.tryParse(_stockCtrl.text.trim());
     final newPrice = double.tryParse(_priceCtrl.text.trim());
-    if (newStock == null || newPrice == null) {
+    final newMrp = double.tryParse(_mrpCtrl.text.trim());
+    if (newStock == null || newPrice == null || newMrp == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter valid stock and price values')),
       );
       return;
     }
-    widget.onSave(newStock, newPrice);
+    widget.onSave(newStock, newPrice, newMrp);
     Navigator.pop(context);
   }
 
@@ -88,8 +94,11 @@ class _CatalogEditSheetState extends State<CatalogEditSheet> {
             ? '${data.stock.toInt()} kg'
             : '${data.stock} kg')
         : '—';
-    final currentPrice = data != null
+    final currentSellingPrice = data != null
         ? '₹${data.price.toStringAsFixed(0)}/$priceUnit'
+        : '—';
+    final currentMrp = data != null
+        ? '₹${data.mrp.toStringAsFixed(0)}/$priceUnit'
         : '—';
 
     return Container(
@@ -236,19 +245,19 @@ class _CatalogEditSheetState extends State<CatalogEditSheet> {
             ),
             const SizedBox(height: AppDimensions.xl),
 
-            // ── Update Price ──────────────────────────────────────────────
+            // ── Update Selling Price ───────────────────────────────────────
             Text(
-              'UPDATE PRICE',
+              'SELLING PRICE (what customer pays)',
               style: AppTextStyles.label.copyWith(
                 color: AppColors.textSecondary,
-                letterSpacing: 1.0,
+                letterSpacing: 0.5,
               ),
             ),
             const SizedBox(height: AppDimensions.sm),
             Row(
               children: [
                 Expanded(
-                  child: _ReadonlyField(label: currentPrice),
+                  child: _ReadonlyField(label: currentSellingPrice),
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: AppDimensions.sm),
@@ -268,9 +277,43 @@ class _CatalogEditSheetState extends State<CatalogEditSheet> {
                 ),
               ],
             ),
+            const SizedBox(height: AppDimensions.xl),
+
+            // ── Update MRP ─────────────────────────────────────────────────
+            Text(
+              'MRP (Maximum Retail Price — for displaying savings)',
+              style: AppTextStyles.label.copyWith(
+                color: AppColors.textSecondary,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: AppDimensions.sm),
+            Row(
+              children: [
+                Expanded(
+                  child: _ReadonlyField(label: currentMrp),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppDimensions.sm),
+                  child: Icon(Icons.arrow_forward_rounded,
+                      color: AppColors.textSecondary, size: 18),
+                ),
+                Expanded(
+                  child: _EditableField(
+                    controller: _mrpCtrl,
+                    prefix: '₹',
+                    suffix: priceUnit,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                    ],
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: AppDimensions.sm),
             Text(
-              'Price will apply to all new orders placed after this.',
+              'Prices will apply to all new orders placed after this.',
               style: AppTextStyles.caption.copyWith(color: AppColors.textHint),
             ),
             const SizedBox(height: AppDimensions.xl),
@@ -281,7 +324,7 @@ class _CatalogEditSheetState extends State<CatalogEditSheet> {
               child: ElevatedButton.icon(
                 onPressed: _save,
                 icon: const Icon(Icons.check_rounded),
-                label: const Text('Update Price'),
+                label: const Text('Update Stock & Prices'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,

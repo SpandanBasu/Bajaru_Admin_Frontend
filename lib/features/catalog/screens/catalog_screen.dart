@@ -98,10 +98,19 @@ class CatalogScreen extends ConsumerWidget {
       builder: (_) => CatalogEditSheet(
         product: product,
         pincode: pincode,
-        onSave: (newStock, newPrice) {
-          ref.read(catalogProvider.notifier).updateStockAndPrice(
-            product.id, pincode.code, newStock, newPrice,
-          );
+        onSave: (newStock, newPrice, newMrp) {
+          ref.read(catalogProvider.notifier)
+              .updateStockAndPrice(product.id, pincode.code, newStock, newPrice, newMrp)
+              .catchError((_) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Failed to update stock and prices'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          });
         },
       ),
     );
@@ -349,7 +358,20 @@ class CatalogScreen extends ConsumerWidget {
                                   pincodeData: pincodeData,
                                   onToggleAvailability: (p.isOutOfStock || pincode == null)
                                       ? null
-                                      : () => notifier.toggleAvailability(p.id, pincode.code),
+                                      : () {
+                                          notifier
+                                              .toggleAvailability(p.id, pincode.code)
+                                              .catchError((_) {
+                                            if (context.mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text('Failed to update availability'),
+                                                  backgroundColor: Colors.red,
+                                                ),
+                                              );
+                                            }
+                                          });
+                                        },
                                   onTap: pincode != null
                                       ? () => _showEditSheet(context, ref, p, pincode)
                                       : null,

@@ -7,12 +7,15 @@ import '../../core/constants/app_dimensions.dart';
 class RiderTile extends StatelessWidget {
   final Rider rider;
   final VoidCallback? onToggleOnline;
+  final VoidCallback? onTap;
 
-  const RiderTile({super.key, required this.rider, this.onToggleOnline});
+  const RiderTile({super.key, required this.rider, this.onToggleOnline, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return InkWell(
+      onTap: onTap,
+      child: Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppDimensions.base,
         vertical: AppDimensions.md,
@@ -84,6 +87,7 @@ class RiderTile extends StatelessWidget {
             ),
         ],
       ),
+    ),
     );
   }
 }

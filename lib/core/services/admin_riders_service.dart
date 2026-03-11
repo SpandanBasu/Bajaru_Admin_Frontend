@@ -2,6 +2,7 @@ import '../api/admin_api_client.dart';
 import '../api/admin_api_endpoints.dart';
 import '../models/delivery_order.dart';
 import '../models/rider.dart';
+import '../models/rider_detail.dart';
 import '../models/route_batch.dart';
 
 class AdminRidersService {
@@ -11,6 +12,11 @@ class AdminRidersService {
   Future<List<Rider>> getRiders() async {
     final list = await _client.getList(AdminApiEndpoints.riders);
     return list.cast<Map<String, dynamic>>().map(Rider.fromJson).toList();
+  }
+
+  Future<RiderDetail> getRiderDetail(String riderId) async {
+    final data = await _client.get(AdminApiEndpoints.riderDetails(riderId));
+    return RiderDetail.fromJson(data);
   }
 
   Future<Rider> setOnlineStatus(String riderId, {required bool online}) async {

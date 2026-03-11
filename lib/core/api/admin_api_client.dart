@@ -46,10 +46,14 @@ class AdminApiClient {
     _dio.interceptors.add(
       QueuedInterceptorsWrapper(
         onError: (DioException e, handler) async {
-          if (e.response?.statusCode == 401) {
+          // 401 = token expired/invalid (backend returns this when JWT validation fails).
+          // 403 = Access Denied from PreAuthorize when token was expired (backend used to return
+          // this before JwtAuthenticationFilter returned 401). Retry after refresh for both.
+          final status = e.response?.statusCode;
+          if (status == 401 || status == 403) {
             if (kDebugMode) {
               // ignore: avoid_print
-              print('[AdminApiClient] 401 → attempting token refresh...');
+              print('[AdminApiClient] $status → attempting token refresh...');
             }
 
             final refreshed = await _refreshWithQueue();
@@ -143,6 +147,17 @@ class AdminApiClient {
     Map<String, dynamic>? body,
   ]) async {
     final response = await _dio.post<Map<String, dynamic>>(
+      path,
+      data: body,
+    );
+    return _unwrap(response.data);
+  }
+
+  Future<Map<String, dynamic>> put(
+    String path, [
+    Map<String, dynamic>? body,
+  ]) async {
+    final response = await _dio.put<Map<String, dynamic>>(
       path,
       data: body,
     );

@@ -13,12 +13,14 @@ class Pincode {
 
 class PincodeProductData {
   final double price;
+  final double mrp;
   final String priceUnit;
   final double stock;
   final bool isAvailable;
 
   const PincodeProductData({
     required this.price,
+    required this.mrp,
     required this.priceUnit,
     required this.stock,
     required this.isAvailable,
@@ -26,12 +28,14 @@ class PincodeProductData {
 
   PincodeProductData copyWith({
     double? price,
+    double? mrp,
     String? priceUnit,
     double? stock,
     bool? isAvailable,
   }) =>
       PincodeProductData(
         price: price ?? this.price,
+        mrp: mrp ?? this.mrp,
         priceUnit: priceUnit ?? this.priceUnit,
         stock: stock ?? this.stock,
         isAvailable: isAvailable ?? this.isAvailable,

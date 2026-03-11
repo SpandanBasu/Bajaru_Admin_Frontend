@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/models/delivery_order.dart';
@@ -566,6 +567,15 @@ class _DeliveryDetailsCard extends StatelessWidget {
             ),
           ],
 
+          // Rejection details (shown only for rejected orders)
+          if (order.status == DeliveryStatus.rejected) ...[
+            _RejectionBanner(order: order),
+            const Divider(
+              color: AppColors.border,
+              height: AppDimensions.base + 4,
+            ),
+          ],
+
           // Three info boxes: Delivered At | Wait Time | Distance
           if (order.departedTime != null ||
               order.deliveredTime != null ||
@@ -722,6 +732,66 @@ class _DeliveryDetailsCard extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ── Rejection Banner ──────────────────────────────────────────────────────────
+
+class _RejectionBanner extends StatelessWidget {
+  final DeliveryOrder order;
+  const _RejectionBanner({required this.order});
+
+  @override
+  Widget build(BuildContext context) {
+    final rejectedAt = order.rejectedAt;
+    final reason = order.rejectionReason;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppDimensions.md),
+      decoration: BoxDecoration(
+        color: AppColors.errorLight,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.cancel_outlined, size: 14, color: AppColors.error),
+              const SizedBox(width: AppDimensions.xs + 2),
+              Text(
+                'ORDER REJECTED',
+                style: AppTextStyles.label.copyWith(
+                  color: AppColors.error,
+                  letterSpacing: 0.8,
+                ),
+              ),
+              if (rejectedAt != null) ...[
+                const Spacer(),
+                Text(
+                  DateFormat('h:mm a').format(rejectedAt),
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.error,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          if (reason != null && reason.isNotEmpty) ...[
+            const SizedBox(height: AppDimensions.sm),
+            Text(
+              reason,
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.error,
+              ),
             ),
           ],
         ],

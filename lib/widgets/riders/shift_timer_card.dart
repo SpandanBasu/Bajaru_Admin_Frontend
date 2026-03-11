@@ -13,34 +13,54 @@ class ShiftTimerCard extends ConsumerStatefulWidget {
 }
 
 class _ShiftTimerCardState extends ConsumerState<ShiftTimerCard> {
-  Timer? _timer;
+  Timer? _ticker;
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      ref.read(shiftElapsedSecondsProvider.notifier).state++;
+    // Tick every second to refresh the elapsed time display.
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
     });
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _ticker?.cancel();
     super.dispose();
   }
 
-  String _format(int secs) {
-    final h = secs ~/ 3600;
-    final m = (secs % 3600) ~/ 60;
-    final s = secs % 60;
-    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  String _hhmmss(Duration d) {
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60);
+    final s = d.inSeconds.remainder(60);
+    return '${h.toString().padLeft(2, '0')}:'
+        '${m.toString().padLeft(2, '0')}:'
+        '${s.toString().padLeft(2, '0')}';
   }
 
   @override
   Widget build(BuildContext context) {
-    final elapsed = ref.watch(shiftElapsedSecondsProvider);
-    const shiftDuration = 6 * 3600; // 6-hour shift
-    final remaining = (shiftDuration - elapsed).clamp(0, shiftDuration);
+    final allRiders = ref.watch(ridersProvider);
+
+    // Find the earliest shift start among currently-online riders.
+    DateTime? shiftStart;
+    for (final r in allRiders) {
+      if (r.isOnline && r.shiftStartedAt != null) {
+        if (shiftStart == null || r.shiftStartedAt!.isBefore(shiftStart)) {
+          shiftStart = r.shiftStartedAt;
+        }
+      }
+    }
+
+    final bool shiftActive = shiftStart != null;
+    final Duration elapsed =
+        shiftActive ? DateTime.now().difference(shiftStart!) : Duration.zero;
+
+    // 6-hour standard shift for progress bar only.
+    const shiftDuration = Duration(hours: 6);
+    final progressFraction =
+        (elapsed.inSeconds / shiftDuration.inSeconds).clamp(0.0, 1.0);
 
     return Container(
       width: double.infinity,
@@ -63,19 +83,20 @@ class _ShiftTimerCardState extends ConsumerState<ShiftTimerCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Shift Timer',
-              style:
-                  AppTextStyles.captionMedium.copyWith(color: Colors.white70)),
+          Text(
+            shiftActive ? 'Shift In Progress' : 'No Active Shift',
+            style: AppTextStyles.captionMedium.copyWith(color: Colors.white70),
+          ),
           const SizedBox(height: AppDimensions.xs),
           Text(
-            _format(remaining),
+            shiftActive ? _hhmmss(elapsed) : '--:--:--',
             style: AppTextStyles.statValue.copyWith(color: Colors.white),
           ),
           const SizedBox(height: AppDimensions.sm),
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
-              value: remaining / shiftDuration,
+              value: shiftActive ? progressFraction : 0,
               backgroundColor: Colors.white24,
               color: Colors.white,
               minHeight: 6,
@@ -83,11 +104,19 @@ class _ShiftTimerCardState extends ConsumerState<ShiftTimerCard> {
           ),
           const SizedBox(height: AppDimensions.xs),
           Text(
-            '${_format(elapsed)} elapsed',
+            shiftActive
+                ? 'Started at ${_fmtTime(shiftStart!)} · ${_hhmmss(elapsed)} elapsed'
+                : 'Waiting for riders to come online',
             style: AppTextStyles.caption.copyWith(color: Colors.white70),
           ),
         ],
       ),
     );
+  }
+
+  static String _fmtTime(DateTime dt) {
+    final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '$h:$m ${dt.hour < 12 ? 'AM' : 'PM'}';
   }
 }

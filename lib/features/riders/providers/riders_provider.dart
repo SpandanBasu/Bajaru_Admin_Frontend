@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../../core/api/admin_api_client.dart';
 import '../../../core/models/delivery_order.dart';
 import '../../../core/models/rider.dart';
+import '../../../core/models/rider_detail.dart';
 import '../../../core/models/route_batch.dart';
 import '../../../core/services/admin_riders_service.dart';
 
@@ -222,6 +223,12 @@ class RiderBatch {
     return (mins.reduce((a, b) => a + b) / mins.length).round();
   }
 }
+
+/// Fetches detail data for a single rider (shift, activity, cash summary).
+final riderDetailProvider =
+    FutureProvider.family<RiderDetail, String>((ref, riderId) async {
+  return ref.read(_ridersServiceProvider).getRiderDetail(riderId);
+});
 
 /// Pincode filter for the Riders screen.
 final ridersSelectedPincodeProvider = StateProvider<String?>((ref) => null);

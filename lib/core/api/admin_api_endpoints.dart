@@ -19,6 +19,8 @@ class AdminApiEndpoints {
 
   // ── Riders ─────────────────────────────────────────────────────────────
   static const String riders = '/api/admin/riders';
+  static String riderDetails(String riderId) =>
+      '/api/admin/riders/$riderId/details';
   static String riderOnlineStatus(String riderId) =>
       '/api/admin/riders/$riderId/online-status';
   static const String routeBatches = '/api/admin/riders/route-batches';
@@ -38,4 +40,8 @@ class AdminApiEndpoints {
       '/api/admin/inventory-management/products/$productId';
   static String productInventory(String productId) =>
       '/api/admin/inventory-management/products/$productId/inventory';
+
+  /// PATCH — toggle active flag for a product+pincode inventory entry.
+  static String inventoryToggle(String productId, String pincode) =>
+      '/api/admin/inventory-management/products/$productId/inventory/$pincode/active';
 }

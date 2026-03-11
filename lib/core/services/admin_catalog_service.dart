@@ -18,6 +18,35 @@ class AdminCatalogService {
         .toList();
   }
 
+  /// Updates stock quantity and selling price for [productId] at [pincode].
+  /// Preserves the existing MRP — only sellingPrice and quantity are changed.
+  Future<void> updateInventory(
+      String productId, String pincode, int quantity, double mrp, double sellingPrice) async {
+    await _client.put(
+      AdminApiEndpoints.productInventory(productId),
+      {
+        'entries': [
+          {
+            'pincode': pincode,
+            'quantityAvailable': quantity,
+            'mrp': mrp,
+            'sellingPrice': sellingPrice,
+          }
+        ]
+      },
+    );
+  }
+
+  /// Toggles the availability of [productId] for [pincode].
+  /// Returns the new active state: `true` = available, `false` = hidden from market.
+  Future<bool> toggleInventoryAvailability(
+      String productId, String pincode) async {
+    final data = await _client.patch(
+      AdminApiEndpoints.inventoryToggle(productId, pincode),
+    );
+    return data['active'] as bool? ?? false;
+  }
+
   /// Fetches all products with their inventory per pincode.
   /// Returns CatalogProducts; filter by selected pincode in the UI.
   Future<List<CatalogProduct>> getCatalogProducts() async {

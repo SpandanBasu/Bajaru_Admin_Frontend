@@ -33,6 +33,54 @@ class CatalogProductTile extends StatelessWidget {
         ProductCategory.all    => Icons.grid_view_rounded,
       };
 
+  void _handleToggleTap(BuildContext context, bool isActive, VoidCallback onConfirm) {
+    if (isActive) {
+      _showOutOfStockConfirmation(context, onConfirm);
+    } else {
+      onConfirm();
+    }
+  }
+
+  void _showOutOfStockConfirmation(BuildContext context, VoidCallback onConfirm) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+        ),
+        backgroundColor: AppColors.surface,
+        title: Text(
+          'Mark Out of Stock',
+          style: AppTextStyles.h3.copyWith(color: AppColors.textPrimary),
+        ),
+        content: Text(
+          'This will make this product unavailable in this region. Are you sure you want to make it Out of stock?',
+          style: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(
+              'Cancel',
+              style: AppTextStyles.bodySemiBold.copyWith(color: AppColors.success),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              onConfirm();
+            },
+            child: Text(
+              'Confirm',
+              style: AppTextStyles.bodySemiBold.copyWith(color: AppColors.error),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final catColor   = _categoryColor(product.category);
@@ -143,7 +191,9 @@ class CatalogProductTile extends StatelessWidget {
 
             // ── Availability toggle ───────────────────────────────────────
             GestureDetector(
-              onTap: onToggleAvailability,
+              onTap: onToggleAvailability != null
+                  ? () => _handleToggleTap(context, isActive, onToggleAvailability!)
+                  : null,
               behavior: HitTestBehavior.opaque,
               child: IgnorePointer(
                 child: Switch(

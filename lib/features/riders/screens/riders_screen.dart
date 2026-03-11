@@ -13,6 +13,7 @@ import '../../../widgets/common/pincode_dropdown.dart';
 import '../../../widgets/riders/shift_timer_card.dart';
 import '../../../widgets/riders/rider_batch_card.dart';
 import '../../../widgets/riders/rider_tile.dart';
+import './rider_details_screen.dart';
 
 class RidersScreen extends ConsumerWidget {
   const RidersScreen({super.key});
@@ -229,6 +230,12 @@ class RidersScreen extends ConsumerWidget {
                                   onToggleOnline: () => ref
                                       .read(ridersProvider.notifier)
                                       .toggleOnline(rider.id),
+                                  onTap: () => Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          RiderDetailsScreen(rider: rider),
+                                    ),
+                                  ),
                                 ),
                             ],
                           ),
