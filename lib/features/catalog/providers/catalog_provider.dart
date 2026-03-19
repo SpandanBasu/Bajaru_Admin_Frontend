@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/admin_api_client.dart';
 import '../../../core/models/catalog_product.dart';
-import '../../../core/models/pincode.dart';
+import '../../../core/models/warehouse.dart';
 import '../../../core/services/admin_catalog_service.dart';
 
 // ── Service provider ──────────────────────────────────────────────────────────
@@ -11,16 +11,16 @@ final _catalogServiceProvider = Provider<AdminCatalogService>(
   (ref) => AdminCatalogService(ref.watch(adminApiClientProvider)),
 );
 
-// ── Pincodes (serviceable delivery areas) ─────────────────────────────────────
+// ── Warehouses (catalog inventory areas) ─────────────────────────────────────
 
-final catalogPincodesProvider = FutureProvider<List<Pincode>>((ref) async {
+final catalogWarehousesProvider = FutureProvider<List<Warehouse>>((ref) async {
   final service = ref.watch(_catalogServiceProvider);
-  return service.getServiceAreas();
+  return service.getWarehouses();
 });
 
-// ── Selected pincode ─────────────────────────────────────────────────────────
+// ── Selected warehouse ────────────────────────────────────────────────────────
 
-final selectedPincodeProvider = StateProvider<Pincode?>((ref) => null);
+final selectedWarehouseProvider = StateProvider<Warehouse?>((ref) => null);
 
 // ── Search & filters ─────────────────────────────────────────────────────────
 
@@ -50,7 +50,7 @@ class CatalogNotifier extends StateNotifier<AsyncValue<List<CatalogProduct>>> {
   /// Optimistically flips the availability toggle in local state,
   /// then persists the change via the backend.
   /// Reverts to the original state if the API call fails.
-  Future<void> toggleAvailability(String productId, String pincodeCode) async {
+  Future<void> toggleAvailability(String productId, String warehouseId) async {
     // Capture original state for rollback
     final originalState = state;
 
@@ -58,18 +58,18 @@ class CatalogNotifier extends StateNotifier<AsyncValue<List<CatalogProduct>>> {
     state.whenData((products) {
       state = AsyncValue.data(products.map((p) {
         if (p.id != productId) return p;
-        final data = p.pincodeData[pincodeCode];
+        final data = p.warehouseData[warehouseId];
         if (data == null) return p;
         return p.copyWith(
-          pincodeData: Map.from(p.pincodeData)
-            ..[pincodeCode] = data.copyWith(isAvailable: !data.isAvailable),
+          warehouseData: Map.from(p.warehouseData)
+            ..[warehouseId] = data.copyWith(isAvailable: !data.isAvailable),
         );
       }).toList());
     });
 
     // Persist to backend; rollback on failure
     try {
-      await _service.toggleInventoryAvailability(productId, pincodeCode);
+      await _service.toggleInventoryAvailability(productId, warehouseId);
     } catch (_) {
       state = originalState;
       rethrow;
@@ -78,7 +78,7 @@ class CatalogNotifier extends StateNotifier<AsyncValue<List<CatalogProduct>>> {
 
   Future<void> updateStockAndPrice(
     String productId,
-    String pincodeCode,
+    String warehouseId,
     double newStock,
     double newPrice,
     double newMrp,
@@ -89,11 +89,11 @@ class CatalogNotifier extends StateNotifier<AsyncValue<List<CatalogProduct>>> {
     state.whenData((products) {
       state = AsyncValue.data(products.map((p) {
         if (p.id != productId) return p;
-        final data = p.pincodeData[pincodeCode];
+        final data = p.warehouseData[warehouseId];
         if (data == null) return p;
         return p.copyWith(
-          pincodeData: Map.from(p.pincodeData)
-            ..[pincodeCode] = data.copyWith(
+          warehouseData: Map.from(p.warehouseData)
+            ..[warehouseId] = data.copyWith(
               stock: newStock,
               price: newPrice,
               mrp: newMrp,
@@ -106,7 +106,7 @@ class CatalogNotifier extends StateNotifier<AsyncValue<List<CatalogProduct>>> {
     try {
       await _service.updateInventory(
         productId,
-        pincodeCode,
+        warehouseId,
         newStock.round(),
         newMrp,
         newPrice,
@@ -123,28 +123,28 @@ final catalogProvider =
   (ref) => CatalogNotifier(ref.read(_catalogServiceProvider)),
 );
 
-// ── Filtered catalog (only products with inventory at selected pincode) ───────
+// ── Filtered catalog (only products with inventory at selected warehouse) ─────
 
 final filteredCatalogProvider = Provider<List<CatalogProduct>>((ref) {
   final catalogState = ref.watch(catalogProvider);
   final query = ref.watch(catalogSearchProvider).toLowerCase();
   final category = ref.watch(catalogCategoryProvider);
   final oosOnly = ref.watch(catalogOutOfStockOnlyProvider);
-  final pincode = ref.watch(selectedPincodeProvider);
+  final warehouse = ref.watch(selectedWarehouseProvider);
 
   return catalogState.when(
     data: (products) {
       return products.where((p) {
-        // When pincode selected: only show products that have inventory at that pincode
-        if (pincode != null && !p.pincodeData.containsKey(pincode.code)) {
+        // When warehouse selected: only show products with inventory at that warehouse
+        if (warehouse != null && !p.warehouseData.containsKey(warehouse.warehouseId)) {
           return false;
         }
         if (category != ProductCategory.all && p.category != category) return false;
         if (query.isNotEmpty && !p.name.toLowerCase().contains(query)) return false;
         if (oosOnly) {
           if (p.isOutOfStock) return true;
-          if (pincode != null) {
-            return !(p.dataFor(pincode.code)?.isAvailable ?? true);
+          if (warehouse != null) {
+            return !(p.dataFor(warehouse.warehouseId)?.isAvailable ?? true);
           }
           return false;
         }

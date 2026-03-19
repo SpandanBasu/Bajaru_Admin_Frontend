@@ -11,6 +11,8 @@ class AdminApiEndpoints {
       '/api/admin/packing/orders/$orderId/status';
   static String packingToggleItem(String orderId, String itemId) =>
       '/api/admin/packing/orders/$orderId/items/$itemId/toggle';
+  static String packingNewBagToggle(String orderId) =>
+      '/api/admin/packing/orders/$orderId/new-bag-toggle';
   static String packingIssue(String orderId) =>
       '/api/admin/packing/orders/$orderId/issue';
 
@@ -34,6 +36,7 @@ class AdminApiEndpoints {
 
   // ── Catalog (inventory management) ────────────────────────────────────
   static const String serviceAreas = '/api/zone/service-areas';
+  static const String adminWarehouses = '/api/admin/warehouses';
   static const String catalogProducts =
       '/api/admin/inventory-management/products';
   static String catalogProduct(String productId) =>
@@ -41,7 +44,27 @@ class AdminApiEndpoints {
   static String productInventory(String productId) =>
       '/api/admin/inventory-management/products/$productId/inventory';
 
-  /// PATCH — toggle active flag for a product+pincode inventory entry.
-  static String inventoryToggle(String productId, String pincode) =>
-      '/api/admin/inventory-management/products/$productId/inventory/$pincode/active';
+  /// PATCH — toggle active flag for a product+warehouseId inventory entry.
+  static String inventoryToggle(String productId, String warehouseId) =>
+      '/api/admin/inventory-management/products/$productId/inventory/$warehouseId/active';
+
+  // ── Customer Support ────────────────────────────────────────────────────────
+
+  /// GET  — search by name, phone, or order ID: ?q={query}
+  static const String csSearch = '/api/admin/customers/search';
+
+  /// GET  — full customer profile (user + orders + wallet + transactions)
+  static String csCustomer(String userId) => '/api/admin/customers/$userId';
+
+  /// GET  — paginated order history for a customer: ?page=1&size=5
+  static String csCustomerOrders(String userId) =>
+      '/api/admin/customers/$userId/orders';
+
+  /// GET  — paginated transaction ledger for a customer
+  static String csCustomerTransactions(String userId) =>
+      '/api/admin/customers/$userId/transactions';
+
+  /// POST — initiate a manual refund for a customer
+  static String csRefund(String userId) =>
+      '/api/admin/customers/$userId/refund';
 }

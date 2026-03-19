@@ -7,17 +7,28 @@ class AdminProcurementService {
   final AdminApiClient _client;
 
   /// Returns [ProcurementSummaryResult] — items list plus aggregated totals.
-  Future<ProcurementSummaryResult> getItems({String? pincode}) async {
+  Future<ProcurementSummaryResult> getItems({
+    String? warehouseId,
+    DateTime? deliveryDate,
+  }) async {
+    final params = <String, dynamic>{};
+    if (warehouseId != null) params['warehouseId'] = warehouseId;
+    if (deliveryDate != null) {
+      params['deliveryDate'] =
+          '${deliveryDate.year.toString().padLeft(4, '0')}-'
+          '${deliveryDate.month.toString().padLeft(2, '0')}-'
+          '${deliveryDate.day.toString().padLeft(2, '0')}';
+    }
     final data = await _client.get(
       AdminApiEndpoints.procurementItems,
-      queryParameters: pincode != null ? {'pincode': pincode} : null,
+      queryParameters: params.isEmpty ? null : params,
     );
     return ProcurementSummaryResult.fromJson(data);
   }
 }
 
 class ProcurementSummaryResult {
-  final int totalInStock;
+  final double totalInStock;
   final double totalNeeded;
   final double totalToProcure;
   final int itemCount;
@@ -36,7 +47,7 @@ class ProcurementSummaryResult {
   factory ProcurementSummaryResult.fromJson(Map<String, dynamic> json) {
     final rawItems = json['items'] as List? ?? [];
     return ProcurementSummaryResult(
-      totalInStock: json['totalInStock'] as int? ?? 0,
+      totalInStock: (json['totalInStock'] as num?)?.toDouble() ?? 0,
       totalNeeded: (json['totalNeeded'] as num?)?.toDouble() ?? 0,
       totalToProcure: (json['totalToProcure'] as num?)?.toDouble() ?? 0,
       itemCount: json['itemCount'] as int? ?? 0,

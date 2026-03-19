@@ -252,19 +252,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset(
-              'assets/icons/whatsapp.png',
-              width: 16,
-              height: 16,
-              errorBuilder: (_, __, ___) => const Icon(
-                Icons.chat_bubble_outline,
-                size: 14,
-                color: Color(0xFF25D366),
-              ),
+            const Icon(
+              Icons.sms_outlined,
+              size: 16,
+              color: AppColors.primary,
             ),
             const SizedBox(width: 6),
             Text(
-              'We will send an OTP via WhatsApp',
+              'We will send an OTP via SMS',
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 color: AppColors.textMuted,

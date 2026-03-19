@@ -102,8 +102,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       _startTimer();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('OTP sent to your WhatsApp!'),
-          backgroundColor: Color(0xFF25D366),
+          content: Text('OTP sent via SMS!'),
+          backgroundColor: AppColors.primary,
         ),
       );
     } catch (e) {
@@ -161,13 +161,13 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               const Icon(
-                                Icons.chat_bubble_outline,
+                                Icons.sms_outlined,
                                 size: 16,
-                                color: Color(0xFF25D366),
+                                color: AppColors.primary,
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                'Check WhatsApp for OTP',
+                                'Check your messages for OTP',
                                 style: GoogleFonts.poppins(
                                   fontSize: 14,
                                   color: AppColors.textMuted,
@@ -219,7 +219,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                "Didn't get it? Resend via WhatsApp",
+                                "Didn't get it? Resend via SMS",
                                 style: GoogleFonts.poppins(
                                   fontSize: 11,
                                   color: AppColors.textMuted,
@@ -237,7 +237,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                                     fontWeight: FontWeight.w600,
                                     color: _resendSeconds > 0
                                         ? Colors.grey
-                                        : const Color(0xFF25D366),
+                                        : AppColors.primary,
                                   ),
                                 ),
                               ),
@@ -270,13 +270,13 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                               child: CircularProgressIndicator(
                                 strokeWidth: 3,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  Color(0xFF25D366),
+                                  AppColors.primary,
                                 ),
                               ),
                             ),
                             const SizedBox(height: 12),
                             Text(
-                              'Waiting for WhatsApp OTP...',
+                              'Waiting for SMS OTP...',
                               style: GoogleFonts.poppins(
                                 fontSize: 13,
                                 color: AppColors.textMuted,

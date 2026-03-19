@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/catalog_provider.dart';
 import '../../../core/models/catalog_product.dart';
-import '../../../core/models/pincode.dart';
+import '../../../core/models/warehouse.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/app_dimensions.dart';
@@ -14,7 +14,7 @@ import '../../../widgets/catalog/catalog_edit_sheet.dart';
 class CatalogScreen extends ConsumerWidget {
   const CatalogScreen({super.key});
 
-  void _showPincodePicker(BuildContext context, WidgetRef ref, Pincode? selected) {
+  void _showWarehousePicker(BuildContext context, WidgetRef ref, Warehouse? selected) {
     showModalBottomSheet<void>(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -22,7 +22,7 @@ class CatalogScreen extends ConsumerWidget {
       ),
       builder: (_) => Consumer(
         builder: (ctx, ref, _) {
-          final pincodesAsync = ref.watch(catalogPincodesProvider);
+          final warehousesAsync = ref.watch(catalogWarehousesProvider);
           return Padding(
             padding: const EdgeInsets.all(AppDimensions.base),
             child: Column(
@@ -40,30 +40,43 @@ class CatalogScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: AppDimensions.base),
-                Text('Select Delivery Area', style: AppTextStyles.h3),
+                Text('Select Warehouse', style: AppTextStyles.h3),
                 const SizedBox(height: AppDimensions.sm),
-                pincodesAsync.when(
-                  data: (pincodes) => pincodes.isEmpty
+                warehousesAsync.when(
+                  data: (warehouses) => warehouses.isEmpty
                       ? Padding(
                           padding: const EdgeInsets.symmetric(vertical: AppDimensions.md),
                           child: Text(
-                            'No service areas',
+                            'No warehouses found',
                             style: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
                           ),
                         )
                       : Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            for (final p in pincodes)
+                            for (final w in warehouses)
                               ListTile(
                                 contentPadding: EdgeInsets.zero,
-                                title: Text(p.area, style: AppTextStyles.body),
-                                subtitle: Text(p.code, style: AppTextStyles.caption),
-                                trailing: selected?.code == p.code
+                                leading: Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primaryLight,
+                                    borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                                  ),
+                                  child: Icon(Icons.warehouse_rounded,
+                                      color: AppColors.primary, size: 20),
+                                ),
+                                title: Text(w.displayName, style: AppTextStyles.bodyMedium),
+                                subtitle: Text(
+                                  '${w.city}  •  ${w.warehouseId}  •  ${w.servicePincodes.length} pincode${w.servicePincodes.length == 1 ? '' : 's'}',
+                                  style: AppTextStyles.caption,
+                                ),
+                                trailing: selected?.warehouseId == w.warehouseId
                                     ? Icon(Icons.check_circle_rounded, color: AppColors.primary)
                                     : Icon(Icons.circle_outlined, color: AppColors.border),
                                 onTap: () {
-                                  ref.read(selectedPincodeProvider.notifier).state = p;
+                                  ref.read(selectedWarehouseProvider.notifier).state = w;
                                   Navigator.pop(context);
                                 },
                               ),
@@ -76,7 +89,7 @@ class CatalogScreen extends ConsumerWidget {
                   error: (_, __) => Padding(
                     padding: const EdgeInsets.symmetric(vertical: AppDimensions.md),
                     child: Text(
-                      'Failed to load areas',
+                      'Failed to load warehouses',
                       style: AppTextStyles.body.copyWith(color: AppColors.error),
                     ),
                   ),
@@ -90,17 +103,17 @@ class CatalogScreen extends ConsumerWidget {
     );
   }
 
-  void _showEditSheet(BuildContext context, WidgetRef ref, CatalogProduct product, Pincode pincode) {
+  void _showEditSheet(BuildContext context, WidgetRef ref, CatalogProduct product, Warehouse warehouse) {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => CatalogEditSheet(
         product: product,
-        pincode: pincode,
+        warehouse: warehouse,
         onSave: (newStock, newPrice, newMrp) {
           ref.read(catalogProvider.notifier)
-              .updateStockAndPrice(product.id, pincode.code, newStock, newPrice, newMrp)
+              .updateStockAndPrice(product.id, warehouse.warehouseId, newStock, newPrice, newMrp)
               .catchError((_) {
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -118,20 +131,20 @@ class CatalogScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final products    = ref.watch(filteredCatalogProvider);
-    final catalogState = ref.watch(catalogProvider);
-    final pincodesAsync = ref.watch(catalogPincodesProvider);
-    final category    = ref.watch(catalogCategoryProvider);
-    final oosOnly     = ref.watch(catalogOutOfStockOnlyProvider);
-    final pincode      = ref.watch(selectedPincodeProvider);
-    final notifier     = ref.read(catalogProvider.notifier);
+    final products      = ref.watch(filteredCatalogProvider);
+    final catalogState  = ref.watch(catalogProvider);
+    final warehousesAsync = ref.watch(catalogWarehousesProvider);
+    final category      = ref.watch(catalogCategoryProvider);
+    final oosOnly       = ref.watch(catalogOutOfStockOnlyProvider);
+    final warehouse     = ref.watch(selectedWarehouseProvider);
+    final notifier      = ref.read(catalogProvider.notifier);
 
-    // Auto-select first service area on first load.
-    final availablePincodes = pincodesAsync.asData?.value ?? const <Pincode>[];
-    if (pincode == null && availablePincodes.isNotEmpty) {
+    // Auto-select first warehouse on first load.
+    final availableWarehouses = warehousesAsync.asData?.value ?? const <Warehouse>[];
+    if (warehouse == null && availableWarehouses.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (ref.read(selectedPincodeProvider) == null) {
-          ref.read(selectedPincodeProvider.notifier).state = availablePincodes.first;
+        if (ref.read(selectedWarehouseProvider) == null) {
+          ref.read(selectedWarehouseProvider.notifier).state = availableWarehouses.first;
         }
       });
     }
@@ -157,7 +170,7 @@ class CatalogScreen extends ConsumerWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Delivery Area pincode selector ───────────────────────────────
+          // ── Warehouse selector ────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppDimensions.base,
@@ -166,7 +179,7 @@ class CatalogScreen extends ConsumerWidget {
               AppDimensions.xs,
             ),
             child: Text(
-              'DELIVERY AREA',
+              'WAREHOUSE',
               style: AppTextStyles.label.copyWith(
                 color: AppColors.textSecondary,
                 letterSpacing: 1.0,
@@ -181,7 +194,7 @@ class CatalogScreen extends ConsumerWidget {
               AppDimensions.md,
             ),
             child: GestureDetector(
-              onTap: () => _showPincodePicker(context, ref, pincode),
+              onTap: () => _showWarehousePicker(context, ref, warehouse),
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(
@@ -195,20 +208,35 @@ class CatalogScreen extends ConsumerWidget {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.location_on_outlined,
+                    Icon(Icons.warehouse_rounded,
                         size: 16, color: AppColors.primary),
                     const SizedBox(width: AppDimensions.sm),
                     Expanded(
-                      child: Text(
-                        pincode != null
-                            ? '${pincode.area}  •  ${pincode.code}'
-                            : 'Select Pincode',
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          color: pincode != null
-                              ? AppColors.textPrimary
-                              : AppColors.textHint,
-                        ),
-                      ),
+                      child: warehouse != null
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  warehouse.displayName,
+                                  style: AppTextStyles.bodyMedium.copyWith(
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                                Text(
+                                  '${warehouse.city}  •  ${warehouse.warehouseId}',
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Text(
+                              'Select Warehouse',
+                              style: AppTextStyles.bodyMedium.copyWith(
+                                color: AppColors.textHint,
+                              ),
+                            ),
                     ),
                     Icon(Icons.keyboard_arrow_down_rounded,
                         color: AppColors.textSecondary),
@@ -217,6 +245,49 @@ class CatalogScreen extends ConsumerWidget {
               ),
             ),
           ),
+
+          // ── Pincode chips for selected warehouse ─────────────────────────
+          if (warehouse != null && warehouse.servicePincodes.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppDimensions.base,
+                0,
+                AppDimensions.base,
+                AppDimensions.md,
+              ),
+              child: Wrap(
+                spacing: AppDimensions.xs,
+                runSpacing: AppDimensions.xs,
+                children: [
+                  for (final pin in warehouse.servicePincodes)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppDimensions.sm,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryLight,
+                        borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.location_pin, size: 11, color: AppColors.primary),
+                          const SizedBox(width: 3),
+                          Text(
+                            pin,
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
 
           // ── Search bar ───────────────────────────────────────────────────
           Padding(
@@ -292,7 +363,7 @@ class CatalogScreen extends ConsumerWidget {
               onRefresh: () async {
                 await Future.wait([
                   notifier.load(),
-                  ref.refresh(catalogPincodesProvider.future),
+                  ref.refresh(catalogWarehousesProvider.future),
                 ]);
               },
               color: AppColors.primary,
@@ -337,8 +408,8 @@ class CatalogScreen extends ConsumerWidget {
                                   height: 220,
                                   child: Center(
                                     child: Text(
-                                      pincode == null
-                                          ? 'Select a delivery area to view products'
+                                      warehouse == null
+                                          ? 'Select a warehouse to view products'
                                           : 'No products found',
                                       style: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
                                     ),
@@ -351,16 +422,16 @@ class CatalogScreen extends ConsumerWidget {
                               itemCount: products.length,
                               itemBuilder: (_, i) {
                                 final p = products[i];
-                                final pincodeData =
-                                    pincode != null ? p.dataFor(pincode.code) : null;
+                                final whData =
+                                    warehouse != null ? p.dataFor(warehouse.warehouseId) : null;
                                 return CatalogProductTile(
                                   product: p,
-                                  pincodeData: pincodeData,
-                                  onToggleAvailability: (p.isOutOfStock || pincode == null)
+                                  warehouseData: whData,
+                                  onToggleAvailability: (p.isOutOfStock || warehouse == null)
                                       ? null
                                       : () {
                                           notifier
-                                              .toggleAvailability(p.id, pincode.code)
+                                              .toggleAvailability(p.id, warehouse.warehouseId)
                                               .catchError((_) {
                                             if (context.mounted) {
                                               ScaffoldMessenger.of(context).showSnackBar(
@@ -372,8 +443,8 @@ class CatalogScreen extends ConsumerWidget {
                                             }
                                           });
                                         },
-                                  onTap: pincode != null
-                                      ? () => _showEditSheet(context, ref, p, pincode)
+                                  onTap: warehouse != null
+                                      ? () => _showEditSheet(context, ref, p, warehouse)
                                       : null,
                                 );
                               },

@@ -7,23 +7,129 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimensions.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/models/procurement_item.dart';
+import '../../../core/models/warehouse.dart';
 import '../../../widgets/procurement/procurement_item_tile.dart';
 import '../../../widgets/common/admin_drawer.dart';
-import '../../../widgets/common/pincode_dropdown.dart';
 
 class ProcurementScreen extends ConsumerWidget {
   const ProcurementScreen({super.key});
 
-  void _showDownloadSheet(BuildContext context, List<ProcurementItem> items) {
-    final lines = items.map((item) {
-      final qty = item.toProcure % 1 == 0
-          ? item.toProcure.toInt().toString()
-          : item.toProcure.toStringAsFixed(1);
-      return '${item.name}: $qty ${item.unit}';
-    }).join('\n');
+  Future<void> _showDateFilterSheet(
+      BuildContext context, WidgetRef ref, DateTime? current) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: current ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 1),
+      helpText: 'Filter by Delivery Date',
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: ColorScheme.light(
+            primary: AppColors.primary,
+            onPrimary: Colors.white,
+            surface: AppColors.surface,
+          ),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) {
+      ref.read(procurementSelectedDateProvider.notifier).state = picked;
+    }
+  }
+
+  void _showWarehousePicker(
+    BuildContext context,
+    WidgetRef ref,
+    Warehouse? selected,
+    AsyncValue<List<Warehouse>> warehousesAsync,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(AppDimensions.base),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppDimensions.base),
+            Text('Select Warehouse', style: AppTextStyles.h3),
+            const SizedBox(height: AppDimensions.sm),
+            warehousesAsync.when(
+              data: (warehouses) => Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final w in warehouses)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Container(
+                        width: 40, height: 40,
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryLight,
+                          borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                        ),
+                        child: Icon(Icons.warehouse_rounded,
+                            color: AppColors.primary, size: 20),
+                      ),
+                      title: Text(w.displayName, style: AppTextStyles.bodyMedium),
+                      subtitle: Text(
+                        '${w.city}  •  ${w.warehouseId}  •  ${w.servicePincodes.length} pincode${w.servicePincodes.length == 1 ? '' : 's'}',
+                        style: AppTextStyles.caption,
+                      ),
+                      trailing: selected?.warehouseId == w.warehouseId
+                          ? Icon(Icons.check_circle_rounded, color: AppColors.primary)
+                          : Icon(Icons.circle_outlined, color: AppColors.border),
+                      onTap: () {
+                        ref.read(procurementSelectedWarehouseProvider.notifier).state = w;
+                        Navigator.pop(context);
+                      },
+                    ),
+                ],
+              ),
+              loading: () => const Padding(
+                padding: EdgeInsets.symmetric(vertical: AppDimensions.md),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              error: (_, __) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppDimensions.md),
+                child: Text('Failed to load warehouses',
+                    style: AppTextStyles.body.copyWith(color: AppColors.error)),
+              ),
+            ),
+            const SizedBox(height: AppDimensions.sm),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDownloadSheet(BuildContext context, List<ProcurementItem> items,
+      DateTime? selectedDate, Warehouse? selectedWarehouse) {
+    final date = selectedDate ?? DateTime.now();
+    final dateLabel = DateFormat('EEEE, d MMMM yyyy').format(date);
+    final warehouseLabel = selectedWarehouse != null
+        ? '🏭 ${selectedWarehouse.displayName} (${selectedWarehouse.warehouseId})\n'
+        : '';
+    final lines = '📦 Procurement — $dateLabel\n'
+        '$warehouseLabel\n'
+        '${items.map((item) => '${item.name}: ${item.formatQuantity(item.neededToday)}').join('\n')}';
 
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -33,15 +139,24 @@ class ProcurementScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final items         = ref.watch(filteredProcurementProvider);
-    final allItems      = ref.watch(procurementProvider);
-    final summary       = ref.watch(procurementSummaryProvider);
-    final selectionType = ref.watch(procurementSelectionTypeProvider);
-    final selectedPin   = ref.watch(procurementSelectedPincodeProvider);
-    final notifier      = ref.read(procurementProvider.notifier);
+    final items             = ref.watch(filteredProcurementProvider);
+    final summary           = ref.watch(procurementSummaryProvider);
+    final selectionType     = ref.watch(procurementSelectionTypeProvider);
+    final selectedWarehouse = ref.watch(procurementSelectedWarehouseProvider);
+    final selectedDate      = ref.watch(procurementSelectedDateProvider);
+    final warehousesAsync   = ref.watch(catalogWarehousesProvider);
+    final notifier          = ref.read(procurementProvider.notifier);
 
-    // unique pincodes from the full list
-    final pincodes = allItems.map((i) => i.pincodeCode).toSet().toList()..sort();
+    // Auto-select first warehouse on first load.
+    final availableWarehouses = warehousesAsync.asData?.value ?? const <Warehouse>[];
+    if (selectedWarehouse == null && availableWarehouses.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (ref.read(procurementSelectedWarehouseProvider) == null) {
+          ref.read(procurementSelectedWarehouseProvider.notifier).state =
+              availableWarehouses.first;
+        }
+      });
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -73,16 +188,35 @@ class ProcurementScreen extends ConsumerWidget {
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.search_rounded),
-            color: AppColors.textSecondary,
-            onPressed: () {},
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.filter_list_rounded),
+                color: selectedDate != null ? AppColors.primary : AppColors.textSecondary,
+                tooltip: 'Filter by delivery date',
+                onPressed: () => _showDateFilterSheet(context, ref, selectedDate),
+              ),
+              if (selectedDate != null)
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
           ),
           IconButton(
             icon: const Icon(Icons.download_rounded),
             color: AppColors.textSecondary,
             tooltip: 'Download list',
-            onPressed: () => _showDownloadSheet(context, items),
+            onPressed: () => _showDownloadSheet(context, items, selectedDate, selectedWarehouse),
           ),
           const SizedBox(width: AppDimensions.xs),
         ],
@@ -90,26 +224,111 @@ class ProcurementScreen extends ConsumerWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Pincode dropdown ──────────────────────────────────────────
-          Container(
-            color: AppColors.surface,
+          // ── Warehouse selector ────────────────────────────────────────
+          Padding(
             padding: const EdgeInsets.fromLTRB(
               AppDimensions.base,
-              AppDimensions.sm,
-              AppDimensions.base,
               AppDimensions.md,
+              AppDimensions.base,
+              AppDimensions.sm,
             ),
-            child: PincodeDropdown(
-              pincodes: pincodes,
-              selected: selectedPin,
-              onChanged: (val) => ref
-                  .read(procurementSelectedPincodeProvider.notifier)
-                  .state = val,
-              allLabel: 'All Godowns',
+            child: GestureDetector(
+              onTap: () => _showWarehousePicker(context, ref, selectedWarehouse, warehousesAsync),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppDimensions.md,
+                  vertical: AppDimensions.md,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.warehouse_rounded, size: 16, color: AppColors.primary),
+                    const SizedBox(width: AppDimensions.sm),
+                    Expanded(
+                      child: selectedWarehouse != null
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  selectedWarehouse.displayName,
+                                  style: AppTextStyles.bodyMedium.copyWith(
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                                Text(
+                                  '${selectedWarehouse.city}  •  ${selectedWarehouse.warehouseId}',
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Text(
+                              'Select Warehouse',
+                              style: AppTextStyles.bodyMedium.copyWith(
+                                color: AppColors.textHint,
+                              ),
+                            ),
+                    ),
+                    Icon(Icons.keyboard_arrow_down_rounded,
+                        color: AppColors.textSecondary),
+                  ],
+                ),
+              ),
             ),
           ),
-          const Divider(height: 1, color: AppColors.border),
           const SizedBox(height: AppDimensions.md),
+
+          // ── Active date filter chip ───────────────────────────────────
+          if (selectedDate != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppDimensions.base, 0, AppDimensions.base, AppDimensions.sm),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppDimensions.sm, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryLight,
+                      borderRadius:
+                          BorderRadius.circular(AppDimensions.radiusFull),
+                      border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.event_rounded,
+                            size: 13, color: AppColors.primary),
+                        const SizedBox(width: 4),
+                        Text(
+                          DateFormat('d MMM yyyy').format(selectedDate),
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        GestureDetector(
+                          onTap: () => ref
+                              .read(procurementSelectedDateProvider.notifier)
+                              .state = null,
+                          child: Icon(Icons.close_rounded,
+                              size: 13, color: AppColors.primary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
           // ── Stats card ────────────────────────────────────────────────
           Padding(
@@ -146,7 +365,9 @@ class ProcurementScreen extends ConsumerWidget {
           // ── Items list ────────────────────────────────────────────────
           Expanded(
             child: RefreshIndicator(
-              onRefresh: () => notifier.refresh(pincode: selectedPin),
+              onRefresh: () => notifier.refresh(
+                  warehouseId: selectedWarehouse?.warehouseId,
+                  deliveryDate: selectedDate),
               color: AppColors.primary,
               child: items.isEmpty
                   ? ListView(
@@ -211,8 +432,8 @@ class _StatsCard extends StatelessWidget {
 
   const _StatsCard({required this.summary});
 
-  String _fmtKg(double v) =>
-      '${v % 1 == 0 ? v.toInt() : v.toStringAsFixed(1)} kg';
+  String _fmtNumber(double v) =>
+      v % 1 == 0 ? v.toInt().toString() : v.toStringAsFixed(1);
 
   @override
   Widget build(BuildContext context) {
@@ -225,26 +446,26 @@ class _StatsCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Top row: kg metrics
+          // Top row: aggregate totals (kg + pcs mixed — see item tiles for details)
           Row(
             children: [
               Expanded(
                 child: _BigStat(
-                  value: _fmtKg(summary.totalInStock),
+                  value: _fmtNumber(summary.totalInStock),
                   label: 'In Stock',
                 ),
               ),
               _VertDiv(),
               Expanded(
                 child: _BigStat(
-                  value: _fmtKg(summary.totalNeeded),
+                  value: _fmtNumber(summary.totalNeeded),
                   label: 'Needed Today',
                 ),
               ),
               _VertDiv(),
               Expanded(
                 child: _BigStat(
-                  value: _fmtKg(summary.totalToProcure),
+                  value: _fmtNumber(summary.totalToProcure),
                   label: 'To Procure',
                 ),
               ),
@@ -352,55 +573,65 @@ class _DownloadSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(AppDimensions.base),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 40, height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.border,
-                borderRadius: BorderRadius.circular(2),
+    return DraggableScrollableSheet(
+      initialChildSize: 0.5,
+      minChildSize: 0.3,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (_, scrollController) => Padding(
+        padding: const EdgeInsets.all(AppDimensions.base),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: AppDimensions.base),
-          Row(
-            children: [
-              Text("Today's Procurement List", style: AppTextStyles.h3),
-              const Spacer(),
-              TextButton.icon(
-                onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: content));
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Copied to clipboard')),
-                    );
-                    Navigator.pop(context);
-                  }
-                },
-                icon: const Icon(Icons.copy_rounded, size: 16),
-                label: const Text('Copy'),
-                style: TextButton.styleFrom(
-                    foregroundColor: AppColors.primary),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppDimensions.sm),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(AppDimensions.md),
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+            const SizedBox(height: AppDimensions.base),
+            Row(
+              children: [
+                Text("Today's Procurement List", style: AppTextStyles.h3),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: () async {
+                    await Clipboard.setData(ClipboardData(text: content));
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Copied to clipboard')),
+                      );
+                      Navigator.pop(context);
+                    }
+                  },
+                  icon: const Icon(Icons.copy_rounded, size: 16),
+                  label: const Text('Copy'),
+                  style: TextButton.styleFrom(
+                      foregroundColor: AppColors.primary),
+                ),
+              ],
             ),
-            child: Text(content, style: AppTextStyles.body),
-          ),
-          const SizedBox(height: AppDimensions.base),
-        ],
+            const SizedBox(height: AppDimensions.sm),
+            Expanded(
+              child: SingleChildScrollView(
+                controller: scrollController,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(AppDimensions.md),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                  ),
+                  child: Text(content, style: AppTextStyles.body),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppDimensions.base),
+          ],
+        ),
       ),
     );
   }

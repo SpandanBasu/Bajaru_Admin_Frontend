@@ -1,18 +1,25 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/admin_api_client.dart';
 import '../../../core/models/procurement_item.dart';
+import '../../../core/models/warehouse.dart';
 import '../../../core/services/admin_procurement_service.dart';
+import '../../catalog/providers/catalog_provider.dart' show catalogWarehousesProvider;
+
+export '../../catalog/providers/catalog_provider.dart' show catalogWarehousesProvider;
 
 // ── Service provider ──────────────────────────────────────────────────────────
 
 final _procurementServiceProvider = Provider<AdminProcurementService>(
     (ref) => AdminProcurementService(ref.watch(adminApiClientProvider)));
 
+// ── Selected warehouse & date filters ─────────────────────────────────────────
+
+final procurementSelectedWarehouseProvider = StateProvider<Warehouse?>((ref) => null);
+final procurementSelectedDateProvider = StateProvider<DateTime?>((ref) => null);
+
 // ── Filter ────────────────────────────────────────────────────────────────────
 
 enum ProcurementSelectionType { none, pendingOnly, procuredOnly, mixed }
-
-final procurementSelectedPincodeProvider = StateProvider<String?>((ref) => null);
 
 // ── Notifier ──────────────────────────────────────────────────────────────────
 
@@ -23,9 +30,10 @@ class ProcurementNotifier extends StateNotifier<List<ProcurementItem>> {
 
   final AdminProcurementService _service;
 
-  Future<void> refresh({String? pincode}) async {
+  Future<void> refresh({String? warehouseId, DateTime? deliveryDate}) async {
     try {
-      final result = await _service.getItems(pincode: pincode);
+      final result = await _service.getItems(
+          warehouseId: warehouseId, deliveryDate: deliveryDate);
       state = result.items;
     } catch (_) {}
   }
@@ -74,19 +82,24 @@ class ProcurementNotifier extends StateNotifier<List<ProcurementItem>> {
 final procurementProvider =
     StateNotifierProvider<ProcurementNotifier, List<ProcurementItem>>((ref) {
   final notifier = ProcurementNotifier(ref.read(_procurementServiceProvider));
-  ref.listen<String?>(procurementSelectedPincodeProvider, (_, pincode) {
-    notifier.refresh(pincode: pincode);
-  });
+
+  void _reload() {
+    final warehouse = ref.read(procurementSelectedWarehouseProvider);
+    final date      = ref.read(procurementSelectedDateProvider);
+    notifier.refresh(warehouseId: warehouse?.warehouseId, deliveryDate: date);
+  }
+
+  ref.listen<Warehouse?>(procurementSelectedWarehouseProvider, (_, __) => _reload());
+  ref.listen<DateTime?>(procurementSelectedDateProvider, (_, __) => _reload());
   return notifier;
 });
 
 // ── Derived providers ─────────────────────────────────────────────────────────
 
+// Server already filters items by warehouseId when procurementSelectedWarehouseProvider
+// is set (notifier.refresh re-fetches), so no additional client-side filter needed.
 final filteredProcurementProvider = Provider<List<ProcurementItem>>((ref) {
-  final items   = ref.watch(procurementProvider);
-  final pincode = ref.watch(procurementSelectedPincodeProvider);
-  if (pincode == null) return items;
-  return items.where((i) => i.pincodeCode == pincode).toList();
+  return ref.watch(procurementProvider);
 });
 
 final procurementSelectionTypeProvider = Provider((ref) {

@@ -210,7 +210,11 @@ final adminApiClientProvider = Provider<AdminApiClient>((ref) {
   final tokenService = ref.watch(tokenServiceProvider);
   return AdminApiClient(
     tokenProvider: () => tokenService.getValidAccessToken(),
-    tokenRefresher: () => tokenService.refreshTokens(),
+    tokenRefresher: () async {
+      final ok = await tokenService.refreshTokens();
+      if (ok) ref.invalidate(authTokenProvider);
+      return ok;
+    },
     onUnauthorized: () => ref.read(authTokenProvider.notifier).clearToken(),
   );
 });

@@ -48,7 +48,7 @@ class AuthService {
 
   bool get isTruecallerAvailable => _isTruecallerAvailable;
 
-  // ── POST /api/auth/whatsapp/otp ─────────────────────────────────────────────
+  // ── POST /api/auth/sms/otp ──────────────────────────────────────────────────
 
   Future<void> sendOtp(String phoneNumber) async {
     try {
@@ -68,7 +68,7 @@ class AuthService {
     }
   }
 
-  // ── POST /api/auth/whatsapp/verify ──────────────────────────────────────────
+  // ── POST /api/auth/sms/verify ───────────────────────────────────────────────
 
   Future<({
     String accessToken,

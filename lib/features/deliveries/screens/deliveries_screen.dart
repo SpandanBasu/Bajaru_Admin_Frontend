@@ -1,36 +1,73 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../providers/deliveries_provider.dart';
+import '../../../core/providers/warehouse_provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/app_dimensions.dart';
 import '../../../widgets/common/admin_drawer.dart';
-import '../../../widgets/common/pincode_dropdown.dart';
+import '../../../widgets/common/warehouse_dropdown.dart';
 import '../../../widgets/deliveries/delivery_order_card.dart';
 import '../../../widgets/deliveries/delivery_filter_bottom_sheet.dart';
 import 'order_detail_screen.dart';
 
-class DeliveriesScreen extends ConsumerWidget {
+class DeliveriesScreen extends ConsumerStatefulWidget {
   const DeliveriesScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final filter   = ref.watch(deliveryFilterProvider);
-    final counts   = ref.watch(deliveryCountsProvider);
-    final orders   = ref.watch(filteredDeliveriesProvider);
-    final pincode  = ref.watch(deliverySelectedPincodeProvider);
-    final orderIdQuery = ref.watch(deliveryOrderIdQueryProvider);
-    final riderQuery = ref.watch(deliveryRiderQueryProvider);
+  ConsumerState<DeliveriesScreen> createState() => _DeliveriesScreenState();
+}
+
+class _DeliveriesScreenState extends ConsumerState<DeliveriesScreen> {
+  final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    final pos = _scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 200) {
+      ref.read(deliveriesProvider.notifier).loadMore();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final deliveryState = ref.watch(deliveriesProvider);
+    final filter        = ref.watch(deliveryFilterProvider);
+    final counts        = ref.watch(deliveryCountsProvider);
+    final orders        = ref.watch(filteredDeliveriesProvider);
+    final selectedDate  = ref.watch(deliverySelectedDateProvider);
+    final orderIdQuery  = ref.watch(deliveryOrderIdQueryProvider);
+    final riderQuery    = ref.watch(deliveryRiderQueryProvider);
     final paymentFilter = ref.watch(deliveryPaymentFilterProvider);
-    final sortBy = ref.watch(deliverySortByProvider);
+    final sortBy        = ref.watch(deliverySortByProvider);
+
+    final now = DateTime.now();
+    final isToday = selectedDate == null ||
+        (selectedDate.year == now.year &&
+            selectedDate.month == now.month &&
+            selectedDate.day == now.day);
+
     final hasExtraFilters = orderIdQuery.trim().isNotEmpty ||
         riderQuery.trim().isNotEmpty ||
         paymentFilter != DeliveryPaymentFilter.all ||
-        sortBy != DeliverySortBy.none;
-    final allOrders = ref.watch(deliveriesProvider);
-    final pincodes = allOrders.isEmpty
-        ? <String>[]
-        : (allOrders.map((o) => o.pincodeCode).toSet().toList()..sort());
+        sortBy != DeliverySortBy.none ||
+        !isToday;
+
+    final dateLabel = isToday
+        ? 'Today'
+        : DateFormat('d MMM yyyy').format(selectedDate!);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -54,7 +91,7 @@ class DeliveriesScreen extends ConsumerWidget {
           children: [
             Text('Deliveries', style: AppTextStyles.h2),
             Text(
-              'Today  ·  ${counts.all} orders',
+              '$dateLabel  ·  ${counts.all} orders',
               style: AppTextStyles.caption
                   .copyWith(color: AppColors.textSecondary),
             ),
@@ -65,7 +102,9 @@ class DeliveriesScreen extends ConsumerWidget {
           IconButton(
             icon: Icon(
               Icons.filter_alt_rounded,
-              color: hasExtraFilters ? AppColors.primary : AppColors.textSecondary,
+              color: hasExtraFilters
+                  ? AppColors.primary
+                  : AppColors.textSecondary,
             ),
             onPressed: () => showDeliveryFilterBottomSheet(context),
           ),
@@ -157,7 +196,7 @@ class DeliveriesScreen extends ConsumerWidget {
             ),
           ),
 
-          // ── Pincode dropdown ───────────────────────────────────────────
+          // ── Warehouse dropdown ─────────────────────────────────────────
           Container(
             color: AppColors.surface,
             padding: const EdgeInsets.fromLTRB(
@@ -166,23 +205,19 @@ class DeliveriesScreen extends ConsumerWidget {
               AppDimensions.base,
               AppDimensions.md,
             ),
-            child: PincodeDropdown(
-              pincodes: pincodes,
-              selected: pincode,
-              onChanged: (val) => ref
-                  .read(deliverySelectedPincodeProvider.notifier)
-                  .state = val,
-            ),
+            child: const WarehouseDropdown(),
           ),
           const Divider(height: 1, color: AppColors.border),
 
-          // ── Orders list (pull-to-refresh) ───────────────────────────────
+          // ── Orders list ────────────────────────────────────────────────
           Expanded(
             child: RefreshIndicator(
-              onRefresh: () =>
-                  ref.read(deliveriesProvider.notifier).refresh(pincode: pincode),
+              onRefresh: () => ref.read(deliveriesProvider.notifier).refresh(
+                    warehouseId: ref.read(activeWarehouseProvider)?.warehouseId,
+                    deliveryDate: selectedDate,
+                  ),
               color: AppColors.primary,
-              child: orders.isEmpty
+              child: orders.isEmpty && !deliveryState.isLoadingMore
                   ? ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       children: [
@@ -200,11 +235,27 @@ class DeliveriesScreen extends ConsumerWidget {
                       ],
                     )
                   : ListView.separated(
+                      controller: _scrollController,
+                      physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.all(AppDimensions.base),
-                      itemCount: orders.length,
+                      itemCount:
+                          orders.length + (deliveryState.isLoadingMore ? 1 : 0),
                       separatorBuilder: (_, __) =>
                           const SizedBox(height: AppDimensions.sm),
                       itemBuilder: (_, i) {
+                        if (i == orders.length) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(
+                                vertical: AppDimensions.base),
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                    AppColors.primary),
+                              ),
+                            ),
+                          );
+                        }
                         final order = orders[i];
                         return DeliveryOrderCard(
                           order: order,

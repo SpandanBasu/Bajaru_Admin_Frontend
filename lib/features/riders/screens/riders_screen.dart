@@ -2,14 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/riders_provider.dart';
 import '../../deliveries/providers/deliveries_provider.dart';
-import '../../../core/models/delivery_order.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/app_dimensions.dart';
 import '../../../core/providers/nav_provider.dart';
 import '../../../widgets/common/admin_drawer.dart';
 import '../../../widgets/common/section_header.dart';
-import '../../../widgets/common/pincode_dropdown.dart';
+import '../../../widgets/common/warehouse_dropdown.dart';
 import '../../../widgets/riders/shift_timer_card.dart';
 import '../../../widgets/riders/rider_batch_card.dart';
 import '../../../widgets/riders/rider_tile.dart';
@@ -23,9 +22,6 @@ class RidersScreen extends ConsumerWidget {
     final batches = ref.watch(riderBatchesProvider);
     final allRiders = ref.watch(ridersProvider);
     final activeDeliveriesAsync = ref.watch(activeDeliveriesProvider);
-    final activeDeliveries =
-        activeDeliveriesAsync.asData?.value ?? const <DeliveryOrder>[];
-    final selectedPincode = ref.watch(ridersSelectedPincodeProvider);
     final ridersError = ref.watch(ridersErrorProvider);
     final onlineCount = allRiders.where((r) => r.isOnline).length;
 
@@ -36,12 +32,6 @@ class RidersScreen extends ConsumerWidget {
       for (final b in batches) b.rider.userId ?? b.rider.id,
     };
     final onDutyCount = onDutyKeys.length;
-
-    // Pincodes for the delivery area filter derived from active deliveries
-    final pincodes = activeDeliveries.isEmpty
-        ? <String>[]
-        : (activeDeliveries.map((o) => o.pincodeCode).toSet().toList()
-          ..sort());
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -113,7 +103,7 @@ class RidersScreen extends ConsumerWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Delivery area pincode filter (sticky) ─────────────────────────
+          // ── Warehouse filter (sticky) ──────────────────────────────────
           Container(
             color: AppColors.surface,
             padding: const EdgeInsets.fromLTRB(
@@ -122,13 +112,7 @@ class RidersScreen extends ConsumerWidget {
               AppDimensions.base,
               AppDimensions.md,
             ),
-            child: PincodeDropdown(
-              pincodes: pincodes,
-              selected: selectedPincode,
-              allLabel: 'All Areas',
-              onChanged: (val) =>
-                  ref.read(ridersSelectedPincodeProvider.notifier).state = val,
-            ),
+            child: const WarehouseDropdown(),
           ),
           const Divider(height: 1, color: AppColors.border),
 
@@ -253,7 +237,6 @@ class RidersScreen extends ConsumerWidget {
   /// Pre-filters deliveries by rider name and switches to the Deliveries tab.
   void _openRiderDeliveries(WidgetRef ref, String riderName) {
     ref.read(deliveryFilterProvider.notifier).state = DeliveryFilterStatus.all;
-    ref.read(deliverySelectedPincodeProvider.notifier).state = null;
     ref.read(deliveryOrderIdQueryProvider.notifier).state = '';
     ref.read(deliveryPaymentFilterProvider.notifier).state =
         DeliveryPaymentFilter.all;

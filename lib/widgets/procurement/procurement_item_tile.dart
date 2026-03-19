@@ -23,9 +23,6 @@ class ProcurementItemTile extends StatelessWidget {
         ProcurementStatus.urgent  => BadgeVariant.error,
       };
 
-  String _fmtQty(double v) =>
-      v % 1 == 0 ? v.toInt().toString() : v.toStringAsFixed(1);
-
   @override
   Widget build(BuildContext context) {
     final isDone = item.status == ProcurementStatus.done;
@@ -109,7 +106,7 @@ class ProcurementItemTile extends StatelessWidget {
                 bottom: AppDimensions.sm,
               ),
               child: Text(
-                '${item.orderCount} orders  •  ${item.pincodeCode}',
+                '${item.orderCount} orders  •  ${item.warehouseId}',
                 style: AppTextStyles.caption
                     .copyWith(color: AppColors.textSecondary),
               ),
@@ -120,7 +117,7 @@ class ProcurementItemTile extends StatelessWidget {
               children: [
                 Expanded(
                   child: _QtyBox(
-                    value: '${_fmtQty(item.inStock)} ${item.unit}',
+                    value: item.formatQuantity(item.inStock),
                     label: 'In Stock',
                     bg: AppColors.neutralLight,
                     valueColor: AppColors.textSecondary,
@@ -129,7 +126,7 @@ class ProcurementItemTile extends StatelessWidget {
                 const SizedBox(width: AppDimensions.xs),
                 Expanded(
                   child: _QtyBox(
-                    value: '${_fmtQty(item.neededToday)} ${item.unit}',
+                    value: item.formatQuantity(item.neededToday),
                     label: 'Needed Today',
                     bg: AppColors.primaryLight,
                     valueColor: AppColors.primary,
@@ -138,7 +135,7 @@ class ProcurementItemTile extends StatelessWidget {
                 const SizedBox(width: AppDimensions.xs),
                 Expanded(
                   child: _QtyBox(
-                    value: '${_fmtQty(item.toProcure)} ${item.unit}',
+                    value: item.formatQuantity(item.toProcure),
                     label: 'To Procure',
                     bg: switch (item.status) {
                       ProcurementStatus.done    => AppColors.successLight,

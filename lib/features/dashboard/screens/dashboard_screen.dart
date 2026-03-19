@@ -9,6 +9,7 @@ import '../../../core/constants/app_dimensions.dart';
 import '../../../widgets/common/admin_app_bar.dart';
 import '../../../widgets/common/admin_drawer.dart';
 import '../../../widgets/common/stat_card.dart';
+import '../../../widgets/common/warehouse_dropdown.dart';
 import '../../../widgets/common/section_header.dart';
 import '../../../widgets/dashboard/phase_badge.dart';
 import '../../../widgets/dashboard/completed_delivery_tile.dart';
@@ -81,6 +82,10 @@ class DashboardScreen extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.all(AppDimensions.base),
           children: [
+            // Warehouse selector
+            const WarehouseDropdown(),
+            const SizedBox(height: AppDimensions.md),
+
             // Phase badge + tappable date selector
             Row(
               children: [

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../core/constants/app_dimensions.dart';
@@ -36,6 +37,7 @@ class _DeliveryFilterBottomSheetState
   late final TextEditingController _riderController;
   late DeliveryPaymentFilter _payment;
   late DeliverySortBy _sort;
+  DateTime? _selectedDate;
 
   @override
   void initState() {
@@ -48,6 +50,7 @@ class _DeliveryFilterBottomSheetState
     );
     _payment = ref.read(deliveryPaymentFilterProvider);
     _sort = ref.read(deliverySortByProvider);
+    _selectedDate = ref.read(deliverySelectedDateProvider);
   }
 
   @override
@@ -59,14 +62,36 @@ class _DeliveryFilterBottomSheetState
 
   // ── Actions ─────────────────────────────────────────────────────────────────
 
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 1),
+      helpText: 'Select Delivery Date',
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: ColorScheme.light(
+            primary: AppColors.primary,
+            onPrimary: Colors.white,
+            surface: AppColors.surface,
+          ),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) setState(() => _selectedDate = picked);
+  }
+
   void _apply() {
-    ref.read(deliveryOrderIdQueryProvider.notifier).state = _orderIdController
-        .text
-        .trim();
-    ref.read(deliveryRiderQueryProvider.notifier).state = _riderController.text
-        .trim();
+    ref.read(deliveryOrderIdQueryProvider.notifier).state =
+        _orderIdController.text.trim();
+    ref.read(deliveryRiderQueryProvider.notifier).state =
+        _riderController.text.trim();
     ref.read(deliveryPaymentFilterProvider.notifier).state = _payment;
     ref.read(deliverySortByProvider.notifier).state = _sort;
+    ref.read(deliverySelectedDateProvider.notifier).state = _selectedDate;
     Navigator.of(context).pop();
   }
 
@@ -76,19 +101,18 @@ class _DeliveryFilterBottomSheetState
     ref.read(deliveryPaymentFilterProvider.notifier).state =
         DeliveryPaymentFilter.all;
     ref.read(deliverySortByProvider.notifier).state = DeliverySortBy.none;
+    ref.read(deliverySelectedDateProvider.notifier).state = null;
     Navigator.of(context).pop();
   }
 
   // ── Toggle helpers ───────────────────────────────────────────────────────────
 
-  /// Tapping an active payment chip deselects it (→ all). Tapping inactive selects it.
   void _togglePayment(DeliveryPaymentFilter tapped) {
     setState(() {
       _payment = _payment == tapped ? DeliveryPaymentFilter.all : tapped;
     });
   }
 
-  /// Cycles: none → primary direction → secondary direction → none.
   void _toggleSort(DeliverySortBy primary, DeliverySortBy secondary) {
     setState(() {
       if (_sort == primary) {
@@ -113,8 +137,8 @@ class _DeliveryFilterBottomSheetState
 
   String get _deliveryTimeSortLabel =>
       _sort == DeliverySortBy.deliveryTimeOldest
-      ? 'Delivery Time ↑'
-      : 'Delivery Time ↓';
+          ? 'Delivery Time ↑'
+          : 'Delivery Time ↓';
 
   String get _priceAmountSortLabel => _sort == DeliverySortBy.amountLowToHigh
       ? 'Price Amount ↑'
@@ -124,6 +148,15 @@ class _DeliveryFilterBottomSheetState
 
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final isToday = _selectedDate == null ||
+        (_selectedDate!.year == now.year &&
+            _selectedDate!.month == now.month &&
+            _selectedDate!.day == now.day);
+    final dateLabel = _selectedDate != null
+        ? DateFormat('EEE, d MMM yyyy').format(_selectedDate!)
+        : 'Today (${DateFormat('d MMM').format(now)})';
+
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -159,6 +192,73 @@ class _DeliveryFilterBottomSheetState
                 children: [
                   Text('Filters', style: AppTextStyles.h2),
                   const SizedBox(height: AppDimensions.lg),
+
+                  // ── DELIVERY DATE ────────────────────────────────────────────
+                  Text('DELIVERY DATE', style: AppTextStyles.label),
+                  const SizedBox(height: AppDimensions.sm),
+                  GestureDetector(
+                    onTap: _pickDate,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppDimensions.base,
+                        vertical: AppDimensions.md,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isToday
+                            ? AppColors.inputBg
+                            : AppColors.primaryLight,
+                        borderRadius:
+                            BorderRadius.circular(AppDimensions.radiusMd),
+                        border: Border.all(
+                          color: isToday
+                              ? AppColors.border
+                              : AppColors.primary.withValues(alpha: 0.4),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.event_rounded,
+                            size: 18,
+                            color: isToday
+                                ? AppColors.textSecondary
+                                : AppColors.primary,
+                          ),
+                          const SizedBox(width: AppDimensions.sm),
+                          Expanded(
+                            child: Text(
+                              dateLabel,
+                              style: AppTextStyles.body.copyWith(
+                                color: isToday
+                                    ? AppColors.textPrimary
+                                    : AppColors.primary,
+                                fontWeight: isToday
+                                    ? FontWeight.normal
+                                    : FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          if (_selectedDate != null)
+                            GestureDetector(
+                              onTap: () =>
+                                  setState(() => _selectedDate = null),
+                              child: Icon(
+                                Icons.close_rounded,
+                                size: 16,
+                                color: AppColors.primary,
+                              ),
+                            )
+                          else
+                            Icon(
+                              Icons.keyboard_arrow_down_rounded,
+                              color: AppColors.textSecondary,
+                              size: 20,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppDimensions.base),
 
                   // ── ORDER ID ────────────────────────────────────────────────
                   Text('ORDER ID', style: AppTextStyles.label),

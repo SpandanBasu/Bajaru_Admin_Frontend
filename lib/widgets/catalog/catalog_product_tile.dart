@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
 import '../../core/models/catalog_product.dart';
-import '../../core/models/pincode.dart';
+import '../../core/models/warehouse.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../core/constants/app_dimensions.dart';
 
 class CatalogProductTile extends StatelessWidget {
   final CatalogProduct product;
-  final PincodeProductData? pincodeData;
-  final VoidCallback? onToggleAvailability; // null = locked (OOS or no pincode)
+  final WarehouseProductData? warehouseData;
+  final VoidCallback? onToggleAvailability; // null = locked (OOS or no warehouse)
   final VoidCallback? onTap;
 
   const CatalogProductTile({
     super.key,
     required this.product,
-    required this.pincodeData,
+    required this.warehouseData,
     required this.onToggleAvailability,
     required this.onTap,
   });
@@ -55,7 +55,7 @@ class CatalogProductTile extends StatelessWidget {
           style: AppTextStyles.h3.copyWith(color: AppColors.textPrimary),
         ),
         content: Text(
-          'This will make this product unavailable in this region. Are you sure you want to make it Out of stock?',
+          'This will make this product unavailable at this warehouse. Are you sure you want to mark it Out of Stock?',
           style: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
         ),
         actions: [
@@ -84,10 +84,10 @@ class CatalogProductTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final catColor   = _categoryColor(product.category);
-    final isActive   = !product.isOutOfStock && (pincodeData?.isAvailable ?? false);
-    final stockQty   = pincodeData?.stock;
-    final price      = pincodeData?.price;
-    final priceUnit  = pincodeData?.priceUnit;
+    final isActive   = !product.isOutOfStock && (warehouseData?.isAvailable ?? false);
+    final stockQty   = warehouseData?.stock;
+    final price      = warehouseData?.price;
+    final priceUnit  = warehouseData?.priceUnit;
 
     final stockText  = stockQty != null
         ? (stockQty % 1 == 0 ? '${stockQty.toInt()} kg' : '$stockQty kg')

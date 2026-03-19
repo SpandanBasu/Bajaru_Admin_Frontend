@@ -14,6 +14,7 @@ import 'features/deliveries/screens/deliveries_screen.dart';
 import 'features/orders/screens/orders_screen.dart';
 import 'features/procurement/screens/procurement_screen.dart';
 import 'features/riders/screens/riders_screen.dart';
+import 'features/customer_support/screens/customer_support_screen.dart';
 
 class AdminApp extends StatelessWidget {
   const AdminApp({super.key});
@@ -104,18 +105,34 @@ class _Shell extends ConsumerStatefulWidget {
 class _ShellState extends ConsumerState<_Shell> {
   DateTime? _lastBackPressed;
 
-  static const _screens = [
-    DashboardScreen(),    // 0
-    ProcurementScreen(),  // 1
-    OrdersScreen(),       // 2
-    RidersScreen(),       // 3
-    DeliveriesScreen(),   // 4
-    CatalogScreen(),      // 5
+  /// Tracks which tab indices have been visited at least once.
+  /// Dashboard (0) is always included so it loads on startup.
+  /// All other tabs are built only on first visit — their providers
+  /// do not initialize until the user actually navigates to that tab.
+  final _visitedTabs = <int>{0};
+
+  static const _allScreens = [
+    DashboardScreen(),          // 0
+    ProcurementScreen(),        // 1
+    OrdersScreen(),             // 2
+    RidersScreen(),             // 3
+    DeliveriesScreen(),         // 4
+    CatalogScreen(),            // 5
+    CustomerSupportScreen(),    // 6
   ];
 
   @override
   Widget build(BuildContext context) {
     final index = ref.watch(navIndexProvider);
+
+    // Mark the current tab as visited so its screen widget is inserted
+    // into the tree for the first time (and kept alive thereafter).
+    _visitedTabs.add(index);
+
+    final children = List.generate(
+      _allScreens.length,
+      (i) => _visitedTabs.contains(i) ? _allScreens[i] : const SizedBox.shrink(),
+    );
 
     return PopScope(
       canPop: false,
@@ -140,7 +157,7 @@ class _ShellState extends ConsumerState<_Shell> {
           SystemNavigator.pop();
         }
       },
-      child: IndexedStack(index: index, children: _screens),
+      child: IndexedStack(index: index, children: children),
     );
   }
 }

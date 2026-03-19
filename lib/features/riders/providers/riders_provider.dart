@@ -5,6 +5,8 @@ import '../../../core/models/delivery_order.dart';
 import '../../../core/models/rider.dart';
 import '../../../core/models/rider_detail.dart';
 import '../../../core/models/route_batch.dart';
+import '../../../core/models/warehouse.dart';
+import '../../../core/providers/warehouse_provider.dart';
 import '../../../core/services/admin_riders_service.dart';
 
 // ── Service provider ──────────────────────────────────────────────────────────
@@ -230,19 +232,18 @@ final riderDetailProvider =
   return ref.read(_ridersServiceProvider).getRiderDetail(riderId);
 });
 
-/// Pincode filter for the Riders screen.
-final ridersSelectedPincodeProvider = StateProvider<String?>((ref) => null);
-
-/// Orders from [activeDeliveriesProvider] grouped by rider, filtered by pincode.
+/// Orders from [activeDeliveriesProvider] grouped by rider, filtered by active warehouse.
 final riderBatchesProvider = Provider<List<RiderBatch>>((ref) {
   final ordersAsync = ref.watch(activeDeliveriesProvider);
   final allOrders = ordersAsync.asData?.value ?? const <DeliveryOrder>[];
   final apiRiders = ref.watch(ridersProvider);
-  final selectedPincode = ref.watch(ridersSelectedPincodeProvider);
+  final activeWarehouse = ref.watch(activeWarehouseProvider);
 
-  final orders = selectedPincode == null
+  final orders = activeWarehouse == null
       ? allOrders
-      : allOrders.where((o) => o.pincodeCode == selectedPincode).toList();
+      : allOrders
+          .where((o) => activeWarehouse.servicePincodes.contains(o.pincodeCode))
+          .toList();
 
   // Group by a stable key: uid:userId → name:riderName
   final Map<String, List<DeliveryOrder>> grouped = {};

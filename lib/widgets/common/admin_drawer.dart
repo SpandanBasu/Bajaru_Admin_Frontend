@@ -102,6 +102,12 @@ class AdminDrawer extends ConsumerWidget {
               selected: currentIndex == 5,
               onTap: () => navigateTo(5),
             ),
+            _DrawerItem(
+              icon: Icons.headset_mic_rounded,
+              label: 'Customer Support',
+              selected: currentIndex == 6,
+              onTap: () => navigateTo(6),
+            ),
 
             const Spacer(),
             Divider(color: AppColors.border, height: 1),

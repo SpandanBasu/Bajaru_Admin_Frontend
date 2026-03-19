@@ -1,4 +1,4 @@
-import 'pincode.dart';
+import 'warehouse.dart';
 
 enum ProductCategory { all, leafy, root, exotic }
 
@@ -20,7 +20,7 @@ class CatalogProduct {
   final String packageSize;
   final String? imageUrl;
   final bool isOutOfStock; // global supplier-level OOS — locks toggle off
-  final Map<String, PincodeProductData> pincodeData; // keyed by pincode.code
+  final Map<String, WarehouseProductData> warehouseData; // keyed by warehouseId
 
   const CatalogProduct({
     required this.id,
@@ -29,10 +29,10 @@ class CatalogProduct {
     required this.packageSize,
     this.imageUrl,
     this.isOutOfStock = false,
-    required this.pincodeData,
+    required this.warehouseData,
   });
 
-  PincodeProductData? dataFor(String pincodeCode) => pincodeData[pincodeCode];
+  WarehouseProductData? dataFor(String warehouseId) => warehouseData[warehouseId];
 
   /// From admin API ProductAdminDto.
   factory CatalogProduct.fromAdminJson(Map<String, dynamic> json) {
@@ -53,16 +53,16 @@ class CatalogProduct {
         .toList();
     final active = json['active'] as bool? ?? true;
     final invList = json['inventory'] as List<dynamic>? ?? [];
-    final pincodeData = <String, PincodeProductData>{};
+    final warehouseData = <String, WarehouseProductData>{};
     for (final inv in invList) {
       final m = inv as Map<String, dynamic>;
-      final pincode = m['pincode'] as String? ?? '';
-      if (pincode.isEmpty) continue;
+      final warehouseId = m['warehouseId'] as String? ?? '';
+      if (warehouseId.isEmpty) continue;
       final invActive = m['active'] as bool? ?? true;
       final qty = (m['quantityAvailable'] as num?)?.toDouble() ?? 0;
       final mrp = (m['mrp'] as num?)?.toDouble() ?? 0;
       final price = (m['sellingPrice'] as num?)?.toDouble() ?? mrp;
-      pincodeData[pincode] = PincodeProductData(
+      warehouseData[warehouseId] = WarehouseProductData(
         price: price,
         mrp: mrp,
         priceUnit: packageSize,
@@ -78,13 +78,13 @@ class CatalogProduct {
       packageSize: packageSize,
       imageUrl: imageUrls.isNotEmpty ? imageUrls.first : null,
       isOutOfStock: !active,
-      pincodeData: pincodeData,
+      warehouseData: warehouseData,
     );
   }
 
   CatalogProduct copyWith({
     bool? isOutOfStock,
-    Map<String, PincodeProductData>? pincodeData,
+    Map<String, WarehouseProductData>? warehouseData,
   }) =>
       CatalogProduct(
         id: id,
@@ -93,6 +93,6 @@ class CatalogProduct {
         packageSize: packageSize,
         imageUrl: imageUrl,
         isOutOfStock: isOutOfStock ?? this.isOutOfStock,
-        pincodeData: pincodeData ?? this.pincodeData,
+        warehouseData: warehouseData ?? this.warehouseData,
       );
 }

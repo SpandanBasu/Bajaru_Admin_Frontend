@@ -48,6 +48,10 @@ class BatchOrder {
   final String pincode;
   final List<PackItem> items;
   final bool isExpanded;
+  /// ₹20/₹50 when customer paid for new bag; 0 when bag swap expected.
+  final double bagCharge;
+  /// True when admin has checked off the new bag in packing.
+  final bool newBagChecked;
 
   const BatchOrder({
     required this.id,
@@ -58,11 +62,20 @@ class BatchOrder {
     required this.pincode,
     required this.items,
     this.isExpanded = false,
+    this.bagCharge = 0,
+    this.newBagChecked = false,
   });
 
-  int get itemCount => items.length;
-  int get checkedCount => items.where((i) => i.isChecked).length;
-  bool get allChecked => items.isNotEmpty && checkedCount == itemCount;
+  bool get needsNewBag => bagCharge > 0;
+
+  int get itemCount => items.length + (needsNewBag ? 1 : 0);
+  int get checkedCount =>
+      items.where((i) => i.isChecked).length +
+      (needsNewBag && newBagChecked ? 1 : 0);
+  bool get allChecked =>
+      items.isNotEmpty &&
+      items.every((i) => i.isChecked) &&
+      (!needsNewBag || newBagChecked);
 
   factory BatchOrder.fromJson(Map<String, dynamic> json) {
     final rawItems = json['items'] as List? ?? [];
@@ -74,6 +87,8 @@ class BatchOrder {
       area: json['area'] as String? ?? '',
       pincode: json['pincode'] as String? ?? '',
       items: rawItems.cast<Map<String, dynamic>>().map(PackItem.fromJson).toList(),
+      bagCharge: (json['bagCharge'] as num?)?.toDouble() ?? 0,
+      newBagChecked: json['newBagChecked'] as bool? ?? false,
     );
   }
 
@@ -90,6 +105,8 @@ class BatchOrder {
     bool clearIssueMessage = false,
     List<PackItem>? items,
     bool? isExpanded,
+    double? bagCharge,
+    bool? newBagChecked,
   }) {
     return BatchOrder(
       id:         id,
@@ -102,6 +119,8 @@ class BatchOrder {
       pincode:    pincode,
       items:      items      ?? this.items,
       isExpanded: isExpanded ?? this.isExpanded,
+      bagCharge:  bagCharge  ?? this.bagCharge,
+      newBagChecked: newBagChecked ?? this.newBagChecked,
     );
   }
 }

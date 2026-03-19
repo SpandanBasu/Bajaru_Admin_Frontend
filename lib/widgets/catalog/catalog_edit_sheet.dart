@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/models/catalog_product.dart';
-import '../../core/models/pincode.dart';
+import '../../core/models/warehouse.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../core/constants/app_dimensions.dart';
 
 class CatalogEditSheet extends StatefulWidget {
   final CatalogProduct product;
-  final Pincode pincode;
+  final Warehouse warehouse;
   final void Function(double newStock, double newPrice, double newMrp) onSave;
 
   const CatalogEditSheet({
     super.key,
     required this.product,
-    required this.pincode,
+    required this.warehouse,
     required this.onSave,
   });
 
@@ -27,7 +27,8 @@ class _CatalogEditSheetState extends State<CatalogEditSheet> {
   late final TextEditingController _priceCtrl;
   late final TextEditingController _mrpCtrl;
 
-  PincodeProductData? get _data => widget.product.dataFor(widget.pincode.code);
+  WarehouseProductData? get _data =>
+      widget.product.dataFor(widget.warehouse.warehouseId);
 
   Color get _catColor => switch (widget.product.category) {
         ProductCategory.leafy  => AppColors.success,
@@ -189,6 +190,30 @@ class _CatalogEditSheetState extends State<CatalogEditSheet> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: AppDimensions.sm),
+
+            // ── Warehouse badge ───────────────────────────────────────────
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppDimensions.md,
+                vertical: AppDimensions.xs,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.primaryLight,
+                borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.warehouse_rounded, size: 12, color: AppColors.primary),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${widget.warehouse.displayName}  •  ${widget.warehouse.city}',
+                    style: AppTextStyles.caption.copyWith(color: AppColors.primary),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: AppDimensions.xl),
 

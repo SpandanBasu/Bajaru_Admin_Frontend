@@ -1,17 +1,45 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../providers/orders_provider.dart';
 import '../../../core/models/batch_order.dart';
+import '../../../core/providers/warehouse_provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/app_dimensions.dart';
 import '../../../widgets/common/admin_app_bar.dart';
 import '../../../widgets/common/admin_drawer.dart';
-import '../../../widgets/common/pincode_dropdown.dart';
+import '../../../widgets/common/warehouse_dropdown.dart';
 import '../../../widgets/orders/order_card.dart';
 
-class OrdersScreen extends ConsumerWidget {
+class OrdersScreen extends ConsumerStatefulWidget {
   const OrdersScreen({super.key});
+
+  @override
+  ConsumerState<OrdersScreen> createState() => _OrdersScreenState();
+}
+
+class _OrdersScreenState extends ConsumerState<OrdersScreen> {
+  final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    final pos = _scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 200) {
+      ref.read(ordersProvider.notifier).loadMore();
+    }
+  }
 
   Future<String?> _showIssueDialog(BuildContext context) async {
     final formKey = GlobalKey<FormState>();
@@ -54,9 +82,7 @@ class OrdersScreen extends ConsumerWidget {
             ElevatedButton(
               onPressed: () {
                 final isValid = formKey.currentState?.validate() ?? false;
-                if (!isValid) {
-                  return;
-                }
+                if (!isValid) return;
                 Navigator.of(dialogContext).pop(issueMessage.trim());
               },
               child: const Text('Confirm'),
@@ -68,14 +94,23 @@ class OrdersScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final counts   = ref.watch(ordersTabCountProvider);
+  Widget build(BuildContext context) {
+    final packingState = ref.watch(ordersProvider);
+    final counts = ref.watch(ordersTabCountProvider);
     final activeTab = ref.watch(ordersTabProvider);
-    final filtered  = ref.watch(filteredOrdersProvider);
-    final notifier  = ref.read(ordersProvider.notifier);
-    final pincode   = ref.watch(ordersSelectedPincodeProvider);
-    final allOrders = ref.watch(ordersProvider);
-    final pincodes  = allOrders.map((o) => o.pincode).toSet().toList()..sort();
+    final filtered = ref.watch(filteredOrdersProvider);
+    final notifier = ref.read(ordersProvider.notifier);
+    final selectedDate = ref.watch(ordersSelectedDateProvider);
+    final activeWarehouse = ref.watch(activeWarehouseProvider);
+
+    final now = DateTime.now();
+    final isToday = selectedDate == null ||
+        (selectedDate.year == now.year &&
+            selectedDate.month == now.month &&
+            selectedDate.day == now.day);
+    final dateLabel = isToday
+        ? 'Today, ${DateFormat('d MMM').format(now)}'
+        : DateFormat('EEE, d MMM').format(selectedDate!);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -83,21 +118,50 @@ class OrdersScreen extends ConsumerWidget {
       appBar: AdminAppBar(title: 'Packing Orders'),
       body: Column(
         children: [
-          // Pincode dropdown
+          // Warehouse dropdown + date picker
           Container(
             color: AppColors.surface,
             padding: const EdgeInsets.fromLTRB(
               AppDimensions.base,
               AppDimensions.sm,
               AppDimensions.base,
-              AppDimensions.md,
+              AppDimensions.sm,
             ),
-            child: PincodeDropdown(
-              pincodes: pincodes,
-              selected: pincode,
-              onChanged: (val) => ref
-                  .read(ordersSelectedPincodeProvider.notifier)
-                  .state = val,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const WarehouseDropdown(),
+                const SizedBox(height: AppDimensions.sm),
+                _DatePickerRow(
+                  dateLabel: dateLabel,
+                  isToday: isToday,
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: selectedDate ?? now,
+                      firstDate: DateTime(2024),
+                      lastDate: DateTime(2027),
+                      builder: (ctx, child) => Theme(
+                        data: Theme.of(ctx).copyWith(
+                          colorScheme: Theme.of(ctx)
+                              .colorScheme
+                              .copyWith(primary: AppColors.primary),
+                        ),
+                        child: child!,
+                      ),
+                    );
+                    if (picked != null) {
+                      ref.read(ordersSelectedDateProvider.notifier).state =
+                          picked;
+                    }
+                  },
+                  onClear: isToday
+                      ? null
+                      : () => ref
+                          .read(ordersSelectedDateProvider.notifier)
+                          .state = null,
+                ),
+              ],
             ),
           ),
           const Divider(height: 1, color: AppColors.border),
@@ -138,9 +202,12 @@ class OrdersScreen extends ConsumerWidget {
           // Orders list
           Expanded(
             child: RefreshIndicator(
-              onRefresh: () => notifier.refresh(pincode: pincode),
+              onRefresh: () => notifier.refresh(
+                warehouseId: activeWarehouse?.warehouseId,
+                deliveryDate: selectedDate,
+              ),
               color: AppColors.primary,
-              child: filtered.isEmpty
+              child: filtered.isEmpty && !packingState.isLoadingMore
                   ? ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       children: const [
@@ -149,10 +216,25 @@ class OrdersScreen extends ConsumerWidget {
                       ],
                     )
                   : ListView.builder(
+                      controller: _scrollController,
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.all(AppDimensions.base),
-                      itemCount: filtered.length,
+                      itemCount:
+                          filtered.length + (packingState.isLoadingMore ? 1 : 0),
                       itemBuilder: (_, i) {
+                        if (i == filtered.length) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(
+                                vertical: AppDimensions.base),
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                    AppColors.primary),
+                              ),
+                            ),
+                          );
+                        }
                         final order = filtered[i];
                         return OrderCard(
                           order: order,
@@ -160,12 +242,12 @@ class OrdersScreen extends ConsumerWidget {
                               notifier.toggleExpand(order.id),
                           onToggleItem: (itemId) =>
                               notifier.toggleItem(order.id, itemId),
+                          onToggleNewBag: () =>
+                              notifier.toggleNewBag(order.id),
                           onComplete: () => notifier.completeOrder(order.id),
                           onMarkAsIssue: () async {
                             final message = await _showIssueDialog(context);
-                            if (message == null) {
-                              return;
-                            }
+                            if (message == null) return;
                             notifier.markIssue(order.id, message);
                           },
                         );
@@ -178,6 +260,71 @@ class OrdersScreen extends ConsumerWidget {
     );
   }
 }
+
+// ── Date picker row ───────────────────────────────────────────────────────────
+
+class _DatePickerRow extends StatelessWidget {
+  final String dateLabel;
+  final bool isToday;
+  final VoidCallback onTap;
+  final VoidCallback? onClear;
+
+  const _DatePickerRow({
+    required this.dateLabel,
+    required this.isToday,
+    required this.onTap,
+    this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isToday ? AppColors.background : AppColors.primaryLight,
+          borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+          border: Border.all(
+            color: isToday ? AppColors.border : AppColors.primary,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.calendar_today_rounded,
+              size: 14,
+              color: isToday ? AppColors.textSecondary : AppColors.primary,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              dateLabel,
+              style: AppTextStyles.caption.copyWith(
+                color: isToday
+                    ? AppColors.textSecondary
+                    : AppColors.primary,
+                fontWeight:
+                    isToday ? FontWeight.normal : FontWeight.w600,
+              ),
+            ),
+            if (onClear != null) ...[
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: onClear,
+                child: Icon(Icons.close_rounded,
+                    size: 14, color: AppColors.primary),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Tab widget ────────────────────────────────────────────────────────────────
 
 class _Tab extends StatelessWidget {
   final String label;
@@ -202,7 +349,8 @@ class _Tab extends StatelessWidget {
           decoration: BoxDecoration(
             border: Border(
               bottom: BorderSide(
-                color: selected ? AppColors.primary : Colors.transparent,
+                color:
+                    selected ? AppColors.primary : Colors.transparent,
                 width: 2,
               ),
             ),
@@ -213,20 +361,26 @@ class _Tab extends StatelessWidget {
               Text(
                 label,
                 style: AppTextStyles.bodySemiBold.copyWith(
-                  color: selected ? AppColors.primary : AppColors.textSecondary,
+                  color: selected
+                      ? AppColors.primary
+                      : AppColors.textSecondary,
                 ),
               ),
               const SizedBox(width: 4),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                 decoration: BoxDecoration(
                   color: selected ? AppColors.primary : AppColors.border,
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+                  borderRadius:
+                      BorderRadius.circular(AppDimensions.radiusFull),
                 ),
                 child: Text(
                   '$count',
                   style: AppTextStyles.label.copyWith(
-                    color: selected ? Colors.white : AppColors.textSecondary,
+                    color: selected
+                        ? Colors.white
+                        : AppColors.textSecondary,
                   ),
                 ),
               ),

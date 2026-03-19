@@ -6,8 +6,8 @@ class AuthEndpoints {
 
   static String get baseUrl => ApiConfig.baseUrl;
 
-  static const String sendOtp = '/api/auth/whatsapp/otp';
-  static const String verifyOtp = '/api/auth/whatsapp/verify';
+  static const String sendOtp = '/api/auth/sms/otp';
+  static const String verifyOtp = '/api/auth/sms/verify';
   static const String truecallerLogin = '/api/auth/truecaller';
   static const String refreshToken = '/api/auth/refresh';
 }

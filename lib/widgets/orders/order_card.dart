@@ -9,6 +9,7 @@ class OrderCard extends StatelessWidget {
   final BatchOrder order;
   final VoidCallback onToggleExpand;
   final ValueChanged<String> onToggleItem;
+  final VoidCallback? onToggleNewBag;
   final VoidCallback onComplete;
   final VoidCallback? onMarkAsIssue;
 
@@ -17,6 +18,7 @@ class OrderCard extends StatelessWidget {
     required this.order,
     required this.onToggleExpand,
     required this.onToggleItem,
+    this.onToggleNewBag,
     required this.onComplete,
     this.onMarkAsIssue,
   });
@@ -154,6 +156,15 @@ class OrderCard extends StatelessWidget {
                       onToggle: () => onToggleItem(item.id),
                     ),
 
+                  // New bag row (when order needs bag charge)
+                  if (order.needsNewBag) ...[
+                    _NewBagRow(
+                      bagCharge: order.bagCharge,
+                      isChecked: order.newBagChecked,
+                      onToggle: onToggleNewBag ?? () {},
+                    ),
+                  ],
+
                   const SizedBox(height: AppDimensions.md),
 
                   // Complete button
@@ -231,6 +242,10 @@ class _PackItemRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final qtyStr =
+        item.quantity % 1 == 0 ? item.quantity.toInt().toString() : item.quantity.toString();
+    final quantityDisplay = '${qtyStr} x ${item.unit}';
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppDimensions.xs),
       child: Row(
@@ -273,9 +288,73 @@ class _PackItemRow extends StatelessWidget {
             ),
           ),
           Text(
-            '${item.quantity % 1 == 0 ? item.quantity.toInt() : item.quantity} ${item.unit}',
+            quantityDisplay,
             style: AppTextStyles.captionMedium
                 .copyWith(color: AppColors.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NewBagRow extends StatelessWidget {
+  final double bagCharge;
+  final bool isChecked;
+  final VoidCallback onToggle;
+
+  const _NewBagRow({
+    required this.bagCharge,
+    required this.isChecked,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: AppDimensions.xs),
+      padding: const EdgeInsets.all(AppDimensions.sm),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: onToggle,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                color: isChecked ? AppColors.success : Colors.transparent,
+                border: Border.all(
+                  color: isChecked ? AppColors.success : AppColors.error,
+                  width: 2,
+                ),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: isChecked
+                  ? const Icon(Icons.check_rounded,
+                      color: Colors.white, size: 12)
+                  : null,
+            ),
+          ),
+          const SizedBox(width: AppDimensions.md),
+          Expanded(
+            child: GestureDetector(
+              onTap: onToggle,
+              behavior: HitTestBehavior.opaque,
+              child: Text(
+                'New bag (₹${bagCharge.toStringAsFixed(0)} paid)',
+                style: AppTextStyles.body.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.error,
+                  decoration: isChecked ? TextDecoration.lineThrough : null,
+                ),
+              ),
+            ),
           ),
         ],
       ),
