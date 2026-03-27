@@ -1,5 +1,5 @@
 import '../api/admin_api_client.dart';
-import '../api/admin_api_endpoints.dart';
+import '../api/api_paths.dart';
 import '../models/dashboard_stats.dart';
 
 class AdminDashboardService {
@@ -8,7 +8,7 @@ class AdminDashboardService {
 
   Future<DashboardStats> getStats({String? date}) async {
     final data = await _client.get(
-      AdminApiEndpoints.dashboardStats,
+      ApiPaths.dashboardStats,
       queryParameters: date != null ? {'date': date} : null,
     );
     return DashboardStats.fromJson(data);

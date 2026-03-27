@@ -2,6 +2,7 @@
 /// Fetched from GET /api/admin/riders/{riderId}/details.
 class RiderDetail {
   final DateTime? shiftStartedAt;
+  final DateTime? shiftEndedAt;
 
   // ── Activity ──────────────────────────────────────────────────────────────
   final int assigned;
@@ -25,6 +26,7 @@ class RiderDetail {
 
   const RiderDetail({
     this.shiftStartedAt,
+    this.shiftEndedAt,
     required this.assigned,
     required this.delivered,
     required this.rejected,
@@ -44,6 +46,9 @@ class RiderDetail {
   factory RiderDetail.fromJson(Map<String, dynamic> json) => RiderDetail(
         shiftStartedAt: json['shiftStartedAt'] != null
             ? DateTime.parse(json['shiftStartedAt'] as String).toLocal()
+            : null,
+        shiftEndedAt: json['shiftEndedAt'] != null
+            ? DateTime.parse(json['shiftEndedAt'] as String).toLocal()
             : null,
         assigned: (json['assigned'] as num?)?.toInt() ?? 0,
         delivered: (json['delivered'] as num?)?.toInt() ?? 0,

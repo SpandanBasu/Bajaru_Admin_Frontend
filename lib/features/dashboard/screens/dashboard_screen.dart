@@ -26,12 +26,11 @@ class DashboardScreen extends ConsumerWidget {
 
   Future<void> _pickDate(BuildContext context, WidgetRef ref) async {
     final current = ref.read(dashboardSelectedDateProvider);
-    final today = DateTime.now();
     final picked = await showDatePicker(
       context: context,
       initialDate: current,
-      firstDate: DateTime(today.year, today.month - 3, 1),
-      lastDate: today,
+      firstDate: DateTime(1900, 1, 1),
+      lastDate: DateTime(2100, 12, 31),
       helpText: 'Select date to view',
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
@@ -78,8 +77,11 @@ class DashboardScreen extends ConsumerWidget {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async {},
+        onRefresh: () => ref
+            .read(dashboardProvider.notifier)
+            .refreshForDate(ref.read(dashboardSelectedDateProvider)),
         child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(AppDimensions.base),
           children: [
             // Warehouse selector
@@ -166,7 +168,7 @@ class DashboardScreen extends ConsumerWidget {
                     const SizedBox(width: AppDimensions.sm),
                     Expanded(
                       child: Text(
-                        'Viewing history for ${DateFormat('EEEE, d MMMM yyyy').format(selectedDate)}',
+                        'Showing data for ${DateFormat('EEEE, d MMMM yyyy').format(selectedDate)}',
                         style: AppTextStyles.caption
                             .copyWith(color: AppColors.warning),
                       ),

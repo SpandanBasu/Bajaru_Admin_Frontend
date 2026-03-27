@@ -5,6 +5,12 @@ import '../../../core/models/warehouse.dart';
 import '../../../core/providers/warehouse_provider.dart';
 import '../../../core/services/admin_packing_service.dart';
 
+// ── Packing mode ──────────────────────────────────────────────────────────────
+
+enum PackingMode { byOrder, byVegetable }
+
+final packingModeProvider = StateProvider<PackingMode>((_) => PackingMode.byOrder);
+
 // ── Service provider ──────────────────────────────────────────────────────────
 
 final _packingServiceProvider = Provider<AdminPackingService>(
@@ -102,20 +108,6 @@ class OrdersNotifier extends StateNotifier<PackingState> {
     ]);
   }
 
-  void toggleNewBag(String orderId) async {
-    state = state.copyWith(orders: [
-      for (final o in state.orders)
-        if (o.id == orderId)
-          o.copyWith(newBagChecked: !o.newBagChecked)
-        else
-          o,
-    ]);
-    try {
-      final updated = await _service.toggleNewBag(orderId);
-      _replaceOrder(updated);
-    } catch (_) {}
-  }
-
   void toggleItem(String orderId, String itemId) async {
     // Optimistic update
     state = state.copyWith(orders: [
@@ -194,6 +186,13 @@ final ordersProvider =
 
   ref.listen<Warehouse?>(activeWarehouseProvider, (_, __) => _reload());
   ref.listen<DateTime?>(ordersSelectedDateProvider, (_, __) => _reload());
+  // Refresh order data when switching back from vegetable mode so checked
+  // state changes made in vegetable view are reflected immediately.
+  ref.listen<PackingMode>(packingModeProvider, (prev, next) {
+    if (prev == PackingMode.byVegetable && next == PackingMode.byOrder) {
+      _reload();
+    }
+  });
   return notifier;
 });
 
@@ -227,4 +226,102 @@ final ordersTabCountProvider = Provider((ref) {
     ready: orders.where((o) => o.status == OrderPackStatus.ready).length,
     issues: orders.where((o) => o.status == OrderPackStatus.issues).length,
   );
+});
+
+// ── Vegetable pack view ───────────────────────────────────────────────────────
+
+class VegetablePackState {
+  final List<VegetablePackGroup> groups;
+  final bool isLoading;
+
+  const VegetablePackState({
+    this.groups = const [],
+    this.isLoading = false,
+  });
+
+  VegetablePackState copyWith({
+    List<VegetablePackGroup>? groups,
+    bool? isLoading,
+  }) =>
+      VegetablePackState(
+        groups: groups ?? this.groups,
+        isLoading: isLoading ?? this.isLoading,
+      );
+}
+
+class VegetablePackNotifier extends StateNotifier<VegetablePackState> {
+  VegetablePackNotifier(this._service) : super(const VegetablePackState());
+
+  final AdminPackingService _service;
+  String? _warehouseId;
+  DateTime? _deliveryDate;
+
+  Future<void> refresh({String? warehouseId, DateTime? deliveryDate}) async {
+    _warehouseId = warehouseId;
+    _deliveryDate = deliveryDate;
+    state = state.copyWith(isLoading: true);
+    try {
+      final groups = await _service.getVegetableView(
+        warehouseId: warehouseId,
+        deliveryDate: deliveryDate,
+      );
+      state = VegetablePackState(groups: groups);
+    } catch (_) {
+      state = state.copyWith(isLoading: false);
+    }
+  }
+
+  void toggleExpand(String productId) {
+    state = state.copyWith(groups: [
+      for (final g in state.groups)
+        if (g.productId == productId) g.copyWith(isExpanded: !g.isExpanded) else g,
+    ]);
+  }
+
+  void togglePacket(String orderId, String itemId) async {
+    // Optimistic update
+    state = state.copyWith(groups: [
+      for (final g in state.groups)
+        g.copyWith(
+          packets: [
+            for (final p in g.packets)
+              if (p.orderId == orderId && p.itemId == itemId)
+                p.copyWith(isChecked: !p.isChecked)
+              else
+                p,
+          ],
+        ),
+    ]);
+    // Recompute allChecked for each group after optimistic update.
+    state = state.copyWith(groups: [
+      for (final g in state.groups)
+        g.copyWith(
+          allChecked: g.packets.isNotEmpty && g.packets.every((p) => p.isChecked),
+        ),
+    ]);
+    try {
+      await _service.toggleItem(orderId, itemId);
+    } catch (_) {
+      // Revert by re-fetching on error.
+      await refresh(warehouseId: _warehouseId, deliveryDate: _deliveryDate);
+    }
+  }
+}
+
+final vegetablePackProvider =
+    StateNotifierProvider<VegetablePackNotifier, VegetablePackState>((ref) {
+  final notifier = VegetablePackNotifier(ref.read(_packingServiceProvider));
+
+  void _reload() {
+    final warehouse = ref.read(activeWarehouseProvider);
+    final date = ref.read(ordersSelectedDateProvider);
+    notifier.refresh(warehouseId: warehouse?.warehouseId, deliveryDate: date);
+  }
+
+  ref.listen<Warehouse?>(activeWarehouseProvider, (_, __) => _reload());
+  ref.listen<DateTime?>(ordersSelectedDateProvider, (_, __) => _reload());
+  ref.listen<PackingMode>(packingModeProvider, (_, next) {
+    if (next == PackingMode.byVegetable) _reload();
+  });
+  return notifier;
 });

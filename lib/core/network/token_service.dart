@@ -4,11 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
+import '../api/api_paths.dart';
 import 'auth_tokens.dart';
-
-// ── Auth endpoint for token refresh ───────────────────────────────────────────
-
-const _refreshTokenPath = '/api/auth/refresh';
 
 // ── Storage keys (admin-specific) ─────────────────────────────────────────────
 
@@ -123,7 +120,7 @@ class TokenService {
     }
 
     try {
-      final uri = Uri.parse('$_apiBaseUrl$_refreshTokenPath');
+      final uri = Uri.parse('$_apiBaseUrl${ApiPaths.refreshToken}');
       debugPrint('TokenService: POST $uri (X-Refresh-Token)');
 
       final response = await http.post(

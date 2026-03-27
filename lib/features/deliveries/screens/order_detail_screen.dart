@@ -11,14 +11,24 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/app_dimensions.dart';
 import '../providers/deliveries_provider.dart';
 
-class OrderDetailScreen extends ConsumerWidget {
+class OrderDetailScreen extends ConsumerStatefulWidget {
   final String orderId;
 
   const OrderDetailScreen({super.key, required this.orderId});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final orderAsync = ref.watch(orderDetailProvider(orderId));
+  ConsumerState<OrderDetailScreen> createState() => _OrderDetailScreenState();
+}
+
+class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
+  Future<void> _refresh() async {
+    ref.invalidate(orderDetailProvider(widget.orderId));
+    await ref.read(orderDetailProvider(widget.orderId).future);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final orderAsync = ref.watch(orderDetailProvider(widget.orderId));
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -56,19 +66,24 @@ class OrderDetailScreen extends ConsumerWidget {
           children: [
             _NavBar(order: order),
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(AppDimensions.base),
-                children: [
-                  _CustomerInfoCard(order: order),
-                  const SizedBox(height: AppDimensions.md),
-                  _OrderSummaryCard(order: order),
-                  const SizedBox(height: AppDimensions.md),
-                  _PaymentDetailsCard(order: order),
-                  const SizedBox(height: AppDimensions.md),
-                  if (order.status != DeliveryStatus.pending)
-                    _DeliveryDetailsCard(order: order),
-                  const SizedBox(height: AppDimensions.base),
-                ],
+              child: RefreshIndicator(
+                onRefresh: _refresh,
+                color: AppColors.primary,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(AppDimensions.base),
+                  children: [
+                    _CustomerInfoCard(order: order),
+                    const SizedBox(height: AppDimensions.md),
+                    _OrderSummaryCard(order: order),
+                    const SizedBox(height: AppDimensions.md),
+                    _PaymentDetailsCard(order: order),
+                    const SizedBox(height: AppDimensions.md),
+                    if (order.status != DeliveryStatus.pending)
+                      _DeliveryDetailsCard(order: order),
+                    const SizedBox(height: AppDimensions.base),
+                  ],
+                ),
               ),
             ),
           ],
@@ -91,6 +106,7 @@ class _NavBar extends StatelessWidget {
       DeliveryStatus.outForDelivery => (AppColors.primaryLight, AppColors.primary),
       DeliveryStatus.pending        => (AppColors.warningLight, AppColors.warning),
       DeliveryStatus.rejected       => (AppColors.errorLight, AppColors.error),
+      DeliveryStatus.cancelled      => (AppColors.textHint.withValues(alpha: 0.15), AppColors.textSecondary),
     };
 
     return Container(
@@ -164,11 +180,19 @@ class _NavBar extends StatelessWidget {
                       ],
                     ),
                     Text(
-                      '${order.date}  ·  ${order.time}',
+                      'Placed: ${order.date}  ·  ${order.time}',
                       style: AppTextStyles.caption.copyWith(
                         color: AppColors.textSecondary,
                       ),
                     ),
+                    if (order.deliveryDate != null)
+                      Text(
+                        'Delivery: ${DateFormat('MMM d, yyyy').format(order.deliveryDate!)}',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -378,56 +402,116 @@ class _CustomerInfoCard extends StatelessWidget {
 
 // ── Order Summary Card ────────────────────────────────────────────────────────
 
-class _OrderSummaryCard extends StatelessWidget {
+class _OrderSummaryCard extends StatefulWidget {
   final DeliveryOrder order;
   const _OrderSummaryCard({required this.order});
 
   @override
+  State<_OrderSummaryCard> createState() => _OrderSummaryCardState();
+}
+
+class _OrderSummaryCardState extends State<_OrderSummaryCard> {
+  bool _expanded = false;
+
+  String _itemLabel(DeliveryOrderItem item) {
+    if (item.name.isEmpty) {
+      return item.displayQuantity.isNotEmpty ? 'Item · ${item.displayQuantity}' : 'Item';
+    }
+    return item.displayQuantity.isNotEmpty
+        ? '${item.name} · ${item.displayQuantity}'
+        : item.name;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Show first 3 items inline, summarise the rest
-    final visibleItems = order.items.take(3).toList();
-    final remainCount = order.items.length - visibleItems.length;
-    final remainPrice = order.items.skip(3).fold<int>(0, (s, i) => s + i.price);
+    final items = widget.order.items;
+    final hasMore = items.length > 3;
+    final visibleItems = (_expanded || !hasMore) ? items : items.take(3).toList();
+    final remainCount = items.length - 3;
+    final remainPrice = items.skip(3).fold<int>(0, (s, i) => s + i.price);
 
     return _SectionCard(
       icon: Icons.shopping_bag_rounded,
       title: 'Order Summary',
-      subtitle: '${order.itemCount} items',
-        body: Column(
+      subtitle: '${widget.order.itemCount} items',
+      body: Column(
         children: [
           for (final item in visibleItems) ...[
-            _ItemRow(
-              name: item.name.isEmpty
-                  ? (item.displayQuantity.isNotEmpty
-                      ? 'Item · ${item.displayQuantity}'
-                      : 'Item')
-                  : (item.displayQuantity.isNotEmpty
-                      ? '${item.name} · ${item.displayQuantity}'
-                      : item.name),
-              value: '₹${item.price}',
+            _ItemRow(name: _itemLabel(item), value: '₹${item.price}'),
+            const SizedBox(height: 6),
+          ],
+
+          // Collapsed: tappable "+X more" row
+          if (!_expanded && hasMore) ...[
+            GestureDetector(
+              onTap: () => setState(() => _expanded = true),
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '+$remainCount more item${remainCount == 1 ? '' : 's'}',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '₹$remainPrice',
+                      style: AppTextStyles.captionMedium
+                          .copyWith(color: AppColors.primary),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.expand_more_rounded,
+                        size: 16, color: AppColors.primary),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: 6),
           ],
-          if (remainCount > 0) ...[
-            _ItemRow(
-              name: '+$remainCount more items...',
-              value: '₹$remainPrice',
-              muted: true,
+
+          // Expanded: "Show less" row
+          if (_expanded && hasMore) ...[
+            GestureDetector(
+              onTap: () => setState(() => _expanded = false),
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Show less',
+                      style: AppTextStyles.caption
+                          .copyWith(color: AppColors.textHint),
+                    ),
+                    const SizedBox(width: 2),
+                    const Icon(Icons.expand_less_rounded,
+                        size: 16, color: AppColors.textHint),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: 6),
           ],
+
           const Divider(color: AppColors.border, height: 16),
           Row(
             children: [
               Text(
-                'Total',
+                'Subtotal',
                 style: AppTextStyles.bodySemiBold.copyWith(
                   color: AppColors.textPrimary,
                 ),
               ),
               const Spacer(),
               Text(
-                '₹${order.total}',
+                '₹${widget.order.amount}',
                 style: AppTextStyles.bodySemiBold.copyWith(
                   fontSize: 16,
                   color: AppColors.textPrimary,
@@ -485,6 +569,33 @@ class _PaymentDetailsCard extends StatelessWidget {
           _ItemRow(name: 'Order Amount', value: '₹${order.amount}'),
           const SizedBox(height: 6),
           _ItemRow(name: 'Delivery Fee', value: '₹${order.deliveryFee}'),
+          if (order.bagCharge > 0) ...[
+            const SizedBox(height: 6),
+            _ItemRow(name: 'Bag Charge', value: '₹${order.bagCharge}'),
+          ],
+          if (order.couponDiscount > 0) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    order.couponCode != null
+                        ? 'Coupon (${order.couponCode})'
+                        : 'Coupon Discount',
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.success,
+                    ),
+                  ),
+                ),
+                Text(
+                  '- ₹${order.couponDiscount}',
+                  style: AppTextStyles.captionMedium.copyWith(
+                    color: AppColors.success,
+                  ),
+                ),
+              ],
+            ),
+          ],
           const Divider(color: AppColors.border, height: 16),
           Row(
             children: [
@@ -507,7 +618,7 @@ class _PaymentDetailsCard extends StatelessWidget {
                 const SizedBox(width: 4),
               ],
               Text(
-                '₹${order.total}',
+                '₹${order.finalTotal}',
                 style: AppTextStyles.bodySemiBold.copyWith(
                   color: order.status == DeliveryStatus.delivered
                       ? AppColors.success

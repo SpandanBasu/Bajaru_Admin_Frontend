@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs grep:*)",
+      "Bash(go build:*)",
+      "Bash(echo \"Exit: $?\")",
+      "Bash(flutter analyze:*)"
+    ]
+  }
+}

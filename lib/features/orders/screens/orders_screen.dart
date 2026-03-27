@@ -11,6 +11,7 @@ import '../../../widgets/common/admin_app_bar.dart';
 import '../../../widgets/common/admin_drawer.dart';
 import '../../../widgets/common/warehouse_dropdown.dart';
 import '../../../widgets/orders/order_card.dart';
+import '../../../widgets/orders/vegetable_pack_card.dart';
 
 class OrdersScreen extends ConsumerStatefulWidget {
   const OrdersScreen({super.key});
@@ -102,6 +103,9 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
     final notifier = ref.read(ordersProvider.notifier);
     final selectedDate = ref.watch(ordersSelectedDateProvider);
     final activeWarehouse = ref.watch(activeWarehouseProvider);
+    final packingMode = ref.watch(packingModeProvider);
+    final vegState = ref.watch(vegetablePackProvider);
+    final vegNotifier = ref.read(vegetablePackProvider.notifier);
 
     final now = DateTime.now();
     final isToday = selectedDate == null ||
@@ -118,7 +122,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
       appBar: AdminAppBar(title: 'Packing Orders'),
       body: Column(
         children: [
-          // Warehouse dropdown + date picker
+          // Warehouse dropdown + date picker + mode toggle
           Container(
             color: AppColors.surface,
             padding: const EdgeInsets.fromLTRB(
@@ -161,102 +165,266 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                           .read(ordersSelectedDateProvider.notifier)
                           .state = null,
                 ),
+                const SizedBox(height: AppDimensions.sm),
+                _ModeToggle(
+                  mode: packingMode,
+                  onChanged: (m) =>
+                      ref.read(packingModeProvider.notifier).state = m,
+                ),
               ],
             ),
           ),
           const Divider(height: 1, color: AppColors.border),
 
-          // Tab bar
-          Container(
-            color: AppColors.surface,
-            child: Row(
-              children: [
-                _Tab(
-                  label: 'To Pack',
-                  count: counts.toPack,
-                  selected: activeTab == OrderPackStatus.toPack,
-                  onTap: () => ref
-                      .read(ordersTabProvider.notifier)
-                      .state = OrderPackStatus.toPack,
-                ),
-                _Tab(
-                  label: 'Ready',
-                  count: counts.ready,
-                  selected: activeTab == OrderPackStatus.ready,
-                  onTap: () => ref
-                      .read(ordersTabProvider.notifier)
-                      .state = OrderPackStatus.ready,
-                ),
-                _Tab(
-                  label: 'Issues',
-                  count: counts.issues,
-                  selected: activeTab == OrderPackStatus.issues,
-                  onTap: () => ref
-                      .read(ordersTabProvider.notifier)
-                      .state = OrderPackStatus.issues,
-                ),
-              ],
-            ),
-          ),
-
-          // Orders list
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: () => notifier.refresh(
-                warehouseId: activeWarehouse?.warehouseId,
-                deliveryDate: selectedDate,
+          // Tab bar — only visible in by-order mode
+          if (packingMode == PackingMode.byOrder)
+            Container(
+              color: AppColors.surface,
+              child: Row(
+                children: [
+                  _Tab(
+                    label: 'To Pack',
+                    count: counts.toPack,
+                    selected: activeTab == OrderPackStatus.toPack,
+                    onTap: () => ref
+                        .read(ordersTabProvider.notifier)
+                        .state = OrderPackStatus.toPack,
+                  ),
+                  _Tab(
+                    label: 'Ready',
+                    count: counts.ready,
+                    selected: activeTab == OrderPackStatus.ready,
+                    onTap: () => ref
+                        .read(ordersTabProvider.notifier)
+                        .state = OrderPackStatus.ready,
+                  ),
+                  _Tab(
+                    label: 'Issues',
+                    count: counts.issues,
+                    selected: activeTab == OrderPackStatus.issues,
+                    onTap: () => ref
+                        .read(ordersTabProvider.notifier)
+                        .state = OrderPackStatus.issues,
+                  ),
+                ],
               ),
-              color: AppColors.primary,
-              child: filtered.isEmpty && !packingState.isLoadingMore
-                  ? ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      children: const [
-                        SizedBox(height: 220),
-                        Center(child: Text('No orders in this category')),
-                      ],
-                    )
-                  : ListView.builder(
-                      controller: _scrollController,
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.all(AppDimensions.base),
-                      itemCount:
-                          filtered.length + (packingState.isLoadingMore ? 1 : 0),
-                      itemBuilder: (_, i) {
-                        if (i == filtered.length) {
-                          return const Padding(
-                            padding: EdgeInsets.symmetric(
-                                vertical: AppDimensions.base),
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                    AppColors.primary),
-                              ),
-                            ),
-                          );
-                        }
-                        final order = filtered[i];
-                        return OrderCard(
-                          order: order,
-                          onToggleExpand: () =>
-                              notifier.toggleExpand(order.id),
-                          onToggleItem: (itemId) =>
-                              notifier.toggleItem(order.id, itemId),
-                          onToggleNewBag: () =>
-                              notifier.toggleNewBag(order.id),
-                          onComplete: () => notifier.completeOrder(order.id),
-                          onMarkAsIssue: () async {
-                            final message = await _showIssueDialog(context);
-                            if (message == null) return;
-                            notifier.markIssue(order.id, message);
-                          },
-                        );
-                      },
-                    ),
             ),
+
+          // Content: order list or vegetable view
+          Expanded(
+            child: packingMode == PackingMode.byVegetable
+                ? _VegetablePackList(
+                    state: vegState,
+                    onRefresh: () => vegNotifier.refresh(
+                      warehouseId: activeWarehouse?.warehouseId,
+                      deliveryDate: selectedDate,
+                    ),
+                    onToggleExpand: vegNotifier.toggleExpand,
+                    onTogglePacket: vegNotifier.togglePacket,
+                  )
+                : RefreshIndicator(
+                    onRefresh: () => notifier.refresh(
+                      warehouseId: activeWarehouse?.warehouseId,
+                      deliveryDate: selectedDate,
+                    ),
+                    color: AppColors.primary,
+                    child: filtered.isEmpty && !packingState.isLoadingMore
+                        ? ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            children: const [
+                              SizedBox(height: 220),
+                              Center(child: Text('No orders in this category')),
+                            ],
+                          )
+                        : ListView.builder(
+                            controller: _scrollController,
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.all(AppDimensions.base),
+                            itemCount: filtered.length +
+                                (packingState.isLoadingMore ? 1 : 0),
+                            itemBuilder: (_, i) {
+                              if (i == filtered.length) {
+                                return const Padding(
+                                  padding: EdgeInsets.symmetric(
+                                      vertical: AppDimensions.base),
+                                  child: Center(
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                          AppColors.primary),
+                                    ),
+                                  ),
+                                );
+                              }
+                              final order = filtered[i];
+                              return OrderCard(
+                                order: order,
+                                onToggleExpand: () =>
+                                    notifier.toggleExpand(order.id),
+                                onToggleItem: (itemId) =>
+                                    notifier.toggleItem(order.id, itemId),
+                                onComplete: () =>
+                                    notifier.completeOrder(order.id),
+                                onMarkAsIssue: () async {
+                                  final message =
+                                      await _showIssueDialog(context);
+                                  if (message == null) return;
+                                  notifier.markIssue(order.id, message);
+                                },
+                              );
+                            },
+                          ),
+                  ),
           ),
         ],
       ),
+    );
+  }
+}
+
+// ── Mode toggle ───────────────────────────────────────────────────────────────
+
+class _ModeToggle extends StatelessWidget {
+  final PackingMode mode;
+  final ValueChanged<PackingMode> onChanged;
+
+  const _ModeToggle({required this.mode, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ModeChip(
+            icon: Icons.receipt_long_rounded,
+            label: 'By Order',
+            selected: mode == PackingMode.byOrder,
+            onTap: () => onChanged(PackingMode.byOrder),
+            isFirst: true,
+          ),
+          _ModeChip(
+            icon: Icons.spa_rounded,
+            label: 'By Veggie',
+            selected: mode == PackingMode.byVegetable,
+            onTap: () => onChanged(PackingMode.byVegetable),
+            isFirst: false,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModeChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final bool isFirst;
+
+  const _ModeChip({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    required this.isFirst,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.horizontal(
+            left: isFirst
+                ? const Radius.circular(AppDimensions.radiusSm - 1)
+                : Radius.zero,
+            right: !isFirst
+                ? const Radius.circular(AppDimensions.radiusSm - 1)
+                : Radius.zero,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 13,
+              color: selected ? Colors.white : AppColors.textSecondary,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: AppTextStyles.label.copyWith(
+                color: selected ? Colors.white : AppColors.textSecondary,
+                fontWeight:
+                    selected ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Vegetable pack list ───────────────────────────────────────────────────────
+
+class _VegetablePackList extends StatelessWidget {
+  final VegetablePackState state;
+  final Future<void> Function() onRefresh;
+  final ValueChanged<String> onToggleExpand;
+  final void Function(String orderId, String itemId) onTogglePacket;
+
+  const _VegetablePackList({
+    required this.state,
+    required this.onRefresh,
+    required this.onToggleExpand,
+    required this.onTogglePacket,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (state.isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      color: AppColors.primary,
+      child: state.groups.isEmpty
+          ? ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: const [
+                SizedBox(height: 220),
+                Center(child: Text('No items to pack')),
+              ],
+            )
+          : ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(AppDimensions.base),
+              itemCount: state.groups.length,
+              itemBuilder: (_, i) {
+                final group = state.groups[i];
+                return VegetablePackCard(
+                  group: group,
+                  onToggleExpand: () => onToggleExpand(group.productId),
+                  onTogglePacket: onTogglePacket,
+                );
+              },
+            ),
     );
   }
 }

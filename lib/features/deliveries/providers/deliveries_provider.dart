@@ -12,7 +12,7 @@ final _deliveriesServiceProvider = Provider<AdminDeliveriesService>(
 
 // ── Filters ───────────────────────────────────────────────────────────────────
 
-enum DeliveryFilterStatus { all, pending, outForDelivery, delivered, rejected }
+enum DeliveryFilterStatus { all, pending, outForDelivery, delivered, rejected, cancelled }
 enum DeliveryPaymentFilter { all, cod, prepaid }
 enum DeliverySortBy {
   none,
@@ -66,6 +66,17 @@ class DeliveriesState {
 
 // ── Notifier ──────────────────────────────────────────────────────────────────
 
+// Maps the UI filter enum to the status string the backend expects.
+// Returning null means "all delivery-relevant statuses" (backend default).
+String? _filterStatusParam(DeliveryFilterStatus f) => switch (f) {
+      DeliveryFilterStatus.all            => null,
+      DeliveryFilterStatus.pending        => 'pending',
+      DeliveryFilterStatus.outForDelivery => 'outForDelivery',
+      DeliveryFilterStatus.delivered      => 'delivered',
+      DeliveryFilterStatus.rejected       => 'rejected',
+      DeliveryFilterStatus.cancelled      => 'cancelled',
+    };
+
 class DeliveriesNotifier extends StateNotifier<DeliveriesState> {
   DeliveriesNotifier(this._service) : super(const DeliveriesState()) {
     refresh();
@@ -74,19 +85,26 @@ class DeliveriesNotifier extends StateNotifier<DeliveriesState> {
   final AdminDeliveriesService _service;
   String? _warehouseId;
   DateTime? _deliveryDate;
+  DeliveryFilterStatus _filterStatus = DeliveryFilterStatus.all;
 
-  Future<void> refresh({String? warehouseId, DateTime? deliveryDate}) async {
-    _warehouseId = warehouseId;
+  Future<void> refresh({
+    String? warehouseId,
+    DateTime? deliveryDate,
+    DeliveryFilterStatus? filterStatus,
+  }) async {
+    _warehouseId  = warehouseId;
     _deliveryDate = deliveryDate;
+    _filterStatus = filterStatus ?? _filterStatus;
     try {
       final result = await _service.getDeliveries(
-        warehouseId: warehouseId,
-        deliveryDate: deliveryDate,
+        status:       _filterStatusParam(_filterStatus),
+        warehouseId:  _warehouseId,
+        deliveryDate: _deliveryDate,
         page: 0,
       );
       state = DeliveriesState(
-        orders: result.orders,
-        hasMore: result.hasMore,
+        orders:   result.orders,
+        hasMore:  result.hasMore,
         nextPage: 1,
       );
     } catch (_) {}
@@ -97,14 +115,15 @@ class DeliveriesNotifier extends StateNotifier<DeliveriesState> {
     state = state.copyWith(isLoadingMore: true);
     try {
       final result = await _service.getDeliveries(
-        warehouseId: _warehouseId,
+        status:       _filterStatusParam(_filterStatus),
+        warehouseId:  _warehouseId,
         deliveryDate: _deliveryDate,
         page: state.nextPage,
       );
       state = state.copyWith(
-        orders: [...state.orders, ...result.orders],
+        orders:   [...state.orders, ...result.orders],
         isLoadingMore: false,
-        hasMore: result.hasMore,
+        hasMore:  result.hasMore,
         nextPage: state.nextPage + 1,
       );
     } catch (_) {
@@ -118,11 +137,58 @@ final deliveriesProvider =
   final notifier = DeliveriesNotifier(ref.read(_deliveriesServiceProvider));
 
   void _reload() {
-    final warehouse = ref.read(activeWarehouseProvider);
-    final date      = ref.read(deliverySelectedDateProvider);
-    notifier.refresh(warehouseId: warehouse?.warehouseId, deliveryDate: date);
+    final warehouse    = ref.read(activeWarehouseProvider);
+    final date         = ref.read(deliverySelectedDateProvider);
+    final filterStatus = ref.read(deliveryFilterProvider);
+    notifier.refresh(
+      warehouseId:  warehouse?.warehouseId,
+      deliveryDate: date,
+      filterStatus: filterStatus,
+    );
   }
 
+  ref.listen<Warehouse?>(activeWarehouseProvider, (_, __) => _reload());
+  ref.listen<DateTime?>(deliverySelectedDateProvider, (_, __) => _reload());
+  // Reload from backend when the status tab changes so pagination is correct.
+  ref.listen<DeliveryFilterStatus>(deliveryFilterProvider, (_, __) => _reload());
+  return notifier;
+});
+
+// ── All-orders notifier for counts (unaffected by status filter tab) ─────────
+
+class _AllOrdersForCountsNotifier extends StateNotifier<List<DeliveryOrder>> {
+  _AllOrdersForCountsNotifier(this._service) : super([]);
+
+  final AdminDeliveriesService _service;
+
+  Future<void> reload({String? warehouseId, DateTime? deliveryDate}) async {
+    try {
+      final result = await _service.getDeliveries(
+        status: null,
+        warehouseId: warehouseId,
+        deliveryDate: deliveryDate,
+        page: 0,
+      );
+      state = result.orders;
+    } catch (_) {}
+  }
+}
+
+final allOrdersForCountsProvider = StateNotifierProvider<
+    _AllOrdersForCountsNotifier, List<DeliveryOrder>>((ref) {
+  final notifier =
+      _AllOrdersForCountsNotifier(ref.read(_deliveriesServiceProvider));
+
+  void _reload() {
+    final warehouse = ref.read(activeWarehouseProvider);
+    final date = ref.read(deliverySelectedDateProvider);
+    notifier.reload(
+      warehouseId: warehouse?.warehouseId,
+      deliveryDate: date,
+    );
+  }
+
+  _reload();
   ref.listen<Warehouse?>(activeWarehouseProvider, (_, __) => _reload());
   ref.listen<DateTime?>(deliverySelectedDateProvider, (_, __) => _reload());
   return notifier;
@@ -130,26 +196,15 @@ final deliveriesProvider =
 
 // ── Derived providers ─────────────────────────────────────────────────────────
 
-final _allDeliveriesProvider =
-    Provider<List<DeliveryOrder>>((ref) => ref.watch(deliveriesProvider).orders);
-
 final filteredDeliveriesProvider = Provider<List<DeliveryOrder>>((ref) {
-  final orders        = ref.watch(_allDeliveriesProvider);
-  final filter        = ref.watch(deliveryFilterProvider);
+  final orders        = ref.watch(deliveriesProvider).orders;
   final orderIdQuery  = ref.watch(deliveryOrderIdQueryProvider).trim().toLowerCase();
   final riderQuery    = ref.watch(deliveryRiderQueryProvider).trim().toLowerCase();
   final paymentFilter = ref.watch(deliveryPaymentFilterProvider);
   final sortBy        = ref.watch(deliverySortByProvider);
 
+  // Status filter is now applied server-side; only secondary filters remain here.
   var result = orders;
-
-  result = switch (filter) {
-    DeliveryFilterStatus.all            => result,
-    DeliveryFilterStatus.pending        => result.where((o) => o.status == DeliveryStatus.pending).toList(),
-    DeliveryFilterStatus.outForDelivery => result.where((o) => o.status == DeliveryStatus.outForDelivery).toList(),
-    DeliveryFilterStatus.delivered      => result.where((o) => o.status == DeliveryStatus.delivered).toList(),
-    DeliveryFilterStatus.rejected       => result.where((o) => o.status == DeliveryStatus.rejected).toList(),
-  };
 
   if (orderIdQuery.isNotEmpty) {
     result = result.where((o) => o.id.toLowerCase().contains(orderIdQuery)).toList();
@@ -173,7 +228,8 @@ final filteredDeliveriesProvider = Provider<List<DeliveryOrder>>((ref) {
         DeliveryStatus.pending        => 0,
         DeliveryStatus.outForDelivery => 1,
         DeliveryStatus.rejected       => 2,
-        DeliveryStatus.delivered      => 3,
+        DeliveryStatus.cancelled      => 3,
+        DeliveryStatus.delivered      => 4,
       };
   switch (sortBy) {
     case DeliverySortBy.none:
@@ -201,13 +257,14 @@ final filteredDeliveriesProvider = Provider<List<DeliveryOrder>>((ref) {
 });
 
 final deliveryCountsProvider = Provider((ref) {
-  final orders = ref.watch(_allDeliveriesProvider);
+  final orders = ref.watch(allOrdersForCountsProvider);
   return (
     all:            orders.length,
     pending:        orders.where((o) => o.status == DeliveryStatus.pending).length,
     outForDelivery: orders.where((o) => o.status == DeliveryStatus.outForDelivery).length,
     delivered:      orders.where((o) => o.status == DeliveryStatus.delivered).length,
     rejected:       orders.where((o) => o.status == DeliveryStatus.rejected).length,
+    cancelled:      orders.where((o) => o.status == DeliveryStatus.cancelled).length,
   );
 });
 

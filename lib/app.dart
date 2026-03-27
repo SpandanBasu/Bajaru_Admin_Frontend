@@ -15,6 +15,7 @@ import 'features/orders/screens/orders_screen.dart';
 import 'features/procurement/screens/procurement_screen.dart';
 import 'features/riders/screens/riders_screen.dart';
 import 'features/customer_support/screens/customer_support_screen.dart';
+import 'features/permissions/screens/permissions_screen.dart';
 
 class AdminApp extends StatelessWidget {
   const AdminApp({super.key});
@@ -119,6 +120,7 @@ class _ShellState extends ConsumerState<_Shell> {
     DeliveriesScreen(),         // 4
     CatalogScreen(),            // 5
     CustomerSupportScreen(),    // 6
+    PermissionsScreen(),        // 7
   ];
 
   @override

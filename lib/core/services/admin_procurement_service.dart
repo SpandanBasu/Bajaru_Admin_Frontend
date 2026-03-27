@@ -1,5 +1,5 @@
 import '../api/admin_api_client.dart';
-import '../api/admin_api_endpoints.dart';
+import '../api/api_paths.dart';
 import '../models/procurement_item.dart';
 
 class AdminProcurementService {
@@ -20,10 +20,27 @@ class AdminProcurementService {
           '${deliveryDate.day.toString().padLeft(2, '0')}';
     }
     final data = await _client.get(
-      AdminApiEndpoints.procurementItems,
+      ApiPaths.procurementItems,
       queryParameters: params.isEmpty ? null : params,
     );
     return ProcurementSummaryResult.fromJson(data);
+  }
+
+  /// Persists the procured/pending status for one item on a specific date.
+  Future<void> setItemStatus({
+    required String productId,
+    required String warehouseId,
+    required DateTime deliveryDate,
+    required String status, // 'DONE' or 'PENDING'
+  }) async {
+    final dateStr =
+        '${deliveryDate.year.toString().padLeft(4, '0')}-'
+        '${deliveryDate.month.toString().padLeft(2, '0')}-'
+        '${deliveryDate.day.toString().padLeft(2, '0')}';
+    await _client.patch(
+      '${ApiPaths.procurementItemStatus(productId, warehouseId)}?deliveryDate=$dateStr',
+      {'status': status},
+    );
   }
 }
 

@@ -1,5 +1,91 @@
 enum OrderPackStatus { toPack, packing, ready, issues }
 
+// ── Vegetable-view models ─────────────────────────────────────────────────────
+
+class VegetablePacket {
+  final String orderId;
+  final String orderDisplayId;
+  final String itemId;
+  final int quantity;
+  final String unitWeight;
+  final bool isChecked;
+
+  const VegetablePacket({
+    required this.orderId,
+    required this.orderDisplayId,
+    required this.itemId,
+    required this.quantity,
+    required this.unitWeight,
+    this.isChecked = false,
+  });
+
+  VegetablePacket copyWith({bool? isChecked}) => VegetablePacket(
+        orderId: orderId,
+        orderDisplayId: orderDisplayId,
+        itemId: itemId,
+        quantity: quantity,
+        unitWeight: unitWeight,
+        isChecked: isChecked ?? this.isChecked,
+      );
+
+  factory VegetablePacket.fromJson(Map<String, dynamic> json) => VegetablePacket(
+        orderId: json['orderId'] as String? ?? '',
+        orderDisplayId: json['orderDisplayId'] as String? ?? '',
+        itemId: json['itemId'] as String? ?? '',
+        quantity: json['quantity'] as int? ?? 0,
+        unitWeight: json['unitWeight'] as String? ?? '',
+        isChecked: json['isChecked'] as bool? ?? false,
+      );
+}
+
+class VegetablePackGroup {
+  final String productId;
+  final String productName;
+  final int totalUnits;
+  final bool allChecked;
+  final List<VegetablePacket> packets;
+  final bool isExpanded;
+
+  const VegetablePackGroup({
+    required this.productId,
+    required this.productName,
+    required this.totalUnits,
+    required this.allChecked,
+    required this.packets,
+    this.isExpanded = false,
+  });
+
+  int get checkedCount => packets.where((p) => p.isChecked).length;
+
+  VegetablePackGroup copyWith({
+    bool? allChecked,
+    List<VegetablePacket>? packets,
+    bool? isExpanded,
+  }) =>
+      VegetablePackGroup(
+        productId: productId,
+        productName: productName,
+        totalUnits: totalUnits,
+        allChecked: allChecked ?? this.allChecked,
+        packets: packets ?? this.packets,
+        isExpanded: isExpanded ?? this.isExpanded,
+      );
+
+  factory VegetablePackGroup.fromJson(Map<String, dynamic> json) {
+    final rawPackets = json['packets'] as List? ?? [];
+    return VegetablePackGroup(
+      productId: json['productId'] as String? ?? '',
+      productName: json['productName'] as String? ?? '',
+      totalUnits: json['totalUnits'] as int? ?? 0,
+      allChecked: json['allChecked'] as bool? ?? false,
+      packets: rawPackets
+          .cast<Map<String, dynamic>>()
+          .map(VegetablePacket.fromJson)
+          .toList(),
+    );
+  }
+}
+
 extension OrderPackStatusLabel on OrderPackStatus {
   String get label {
     switch (this) {
@@ -48,10 +134,7 @@ class BatchOrder {
   final String pincode;
   final List<PackItem> items;
   final bool isExpanded;
-  /// ₹20/₹50 when customer paid for new bag; 0 when bag swap expected.
   final double bagCharge;
-  /// True when admin has checked off the new bag in packing.
-  final bool newBagChecked;
 
   const BatchOrder({
     required this.id,
@@ -63,19 +146,11 @@ class BatchOrder {
     required this.items,
     this.isExpanded = false,
     this.bagCharge = 0,
-    this.newBagChecked = false,
   });
 
-  bool get needsNewBag => bagCharge > 0;
-
-  int get itemCount => items.length + (needsNewBag ? 1 : 0);
-  int get checkedCount =>
-      items.where((i) => i.isChecked).length +
-      (needsNewBag && newBagChecked ? 1 : 0);
-  bool get allChecked =>
-      items.isNotEmpty &&
-      items.every((i) => i.isChecked) &&
-      (!needsNewBag || newBagChecked);
+  int get itemCount => items.length;
+  int get checkedCount => items.where((i) => i.isChecked).length;
+  bool get allChecked => items.isNotEmpty && items.every((i) => i.isChecked);
 
   factory BatchOrder.fromJson(Map<String, dynamic> json) {
     final rawItems = json['items'] as List? ?? [];
@@ -88,7 +163,6 @@ class BatchOrder {
       pincode: json['pincode'] as String? ?? '',
       items: rawItems.cast<Map<String, dynamic>>().map(PackItem.fromJson).toList(),
       bagCharge: (json['bagCharge'] as num?)?.toDouble() ?? 0,
-      newBagChecked: json['newBagChecked'] as bool? ?? false,
     );
   }
 
@@ -105,8 +179,6 @@ class BatchOrder {
     bool clearIssueMessage = false,
     List<PackItem>? items,
     bool? isExpanded,
-    double? bagCharge,
-    bool? newBagChecked,
   }) {
     return BatchOrder(
       id:         id,
@@ -119,8 +191,7 @@ class BatchOrder {
       pincode:    pincode,
       items:      items      ?? this.items,
       isExpanded: isExpanded ?? this.isExpanded,
-      bagCharge:  bagCharge  ?? this.bagCharge,
-      newBagChecked: newBagChecked ?? this.newBagChecked,
+      bagCharge:  bagCharge,
     );
   }
 }

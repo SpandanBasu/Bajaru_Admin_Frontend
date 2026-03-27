@@ -140,10 +140,11 @@ class _StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (bg, fg, solid) = switch (status) {
-      DeliveryStatus.pending        => (AppColors.warningLight, AppColors.warning, false),
-      DeliveryStatus.outForDelivery => (AppColors.primaryLight,  AppColors.primary, false),
-      DeliveryStatus.delivered      => (AppColors.success,       Colors.white,       true),
-      DeliveryStatus.rejected       => (AppColors.errorLight,    AppColors.error,    false),
+      DeliveryStatus.pending        => (AppColors.warningLight, AppColors.warning,       false),
+      DeliveryStatus.outForDelivery => (AppColors.primaryLight,  AppColors.primary,      false),
+      DeliveryStatus.delivered      => (AppColors.success,       Colors.white,            true),
+      DeliveryStatus.rejected       => (AppColors.errorLight,    AppColors.error,         false),
+      DeliveryStatus.cancelled      => (AppColors.textHint.withValues(alpha: 0.15), AppColors.textSecondary, false),
     };
 
     return Container(

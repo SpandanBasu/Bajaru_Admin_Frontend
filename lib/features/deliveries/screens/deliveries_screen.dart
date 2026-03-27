@@ -191,6 +191,21 @@ class _DeliveriesScreenState extends ConsumerState<DeliveriesScreen> {
                           .state = DeliveryFilterStatus.rejected,
                     ),
                   ],
+                  if (counts.cancelled > 0) ...[
+                    const SizedBox(width: AppDimensions.sm),
+                    _FilterChip(
+                      label: 'Cancelled (${counts.cancelled})',
+                      selected: filter == DeliveryFilterStatus.cancelled,
+                      selectedBg: AppColors.textHint.withValues(alpha: 0.12),
+                      selectedFg: AppColors.textSecondary,
+                      unselectedBg: AppColors.textHint.withValues(alpha: 0.12),
+                      unselectedFg: AppColors.textSecondary,
+                      borderColor: AppColors.textHint,
+                      onTap: () => ref
+                          .read(deliveryFilterProvider.notifier)
+                          .state = DeliveryFilterStatus.cancelled,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -212,10 +227,20 @@ class _DeliveriesScreenState extends ConsumerState<DeliveriesScreen> {
           // ── Orders list ────────────────────────────────────────────────
           Expanded(
             child: RefreshIndicator(
-              onRefresh: () => ref.read(deliveriesProvider.notifier).refresh(
-                    warehouseId: ref.read(activeWarehouseProvider)?.warehouseId,
-                    deliveryDate: selectedDate,
-                  ),
+              onRefresh: () async {
+                final warehouseId =
+                    ref.read(activeWarehouseProvider)?.warehouseId;
+                await Future.wait([
+                  ref.read(deliveriesProvider.notifier).refresh(
+                        warehouseId: warehouseId,
+                        deliveryDate: selectedDate,
+                      ),
+                  ref.read(allOrdersForCountsProvider.notifier).reload(
+                        warehouseId: warehouseId,
+                        deliveryDate: selectedDate,
+                      ),
+                ]);
+              },
               color: AppColors.primary,
               child: orders.isEmpty && !deliveryState.isLoadingMore
                   ? ListView(

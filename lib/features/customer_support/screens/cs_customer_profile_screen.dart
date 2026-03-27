@@ -28,11 +28,32 @@ class CsCustomerProfileScreen extends ConsumerStatefulWidget {
 
 class _CsCustomerProfileScreenState
     extends ConsumerState<CsCustomerProfileScreen> {
-  // Orders loaded via "Load More" (beyond the first 5 from detail).
+  final _scrollController = ScrollController();
+
+  // Orders loaded beyond the first page embedded in detail response.
   final List<SupportOrder> _extraOrders = [];
   bool _hasMore = false;
   bool _isLoadingMore = false;
   int _nextPage = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    final pos = _scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 200) {
+      _loadMore();
+    }
+  }
 
   void _initFromDetail(CustomerDetail customer) {
     // Only initialise once (when _nextPage is still 1 and _extraOrders empty).
@@ -42,7 +63,7 @@ class _CsCustomerProfileScreenState
   }
 
   Future<void> _loadMore() async {
-    if (_isLoadingMore) return;
+    if (_isLoadingMore || !_hasMore) return;
     setState(() => _isLoadingMore = true);
     final result = await ref.read(csServiceProvider).getCustomerOrders(
           widget.customerId,
@@ -122,6 +143,7 @@ class _CsCustomerProfileScreenState
                     ..._extraOrders,
                   ];
                   return ListView(
+                    controller: _scrollController,
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(AppDimensions.base),
                     children: [
@@ -157,11 +179,17 @@ class _CsCustomerProfileScreenState
                                     _openOrderDetail(order.orderId),
                               ),
                             )),
-                        if (_hasMore) ...[
+                        if (_isLoadingMore) ...[
                           const SizedBox(height: AppDimensions.sm),
-                          _LoadMoreButton(
-                            isLoading: _isLoadingMore,
-                            onTap: _loadMore,
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(
+                                  vertical: AppDimensions.base),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.primary,
+                              ),
+                            ),
                           ),
                         ],
                       ],
@@ -173,57 +201,6 @@ class _CsCustomerProfileScreenState
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ── Load More Button ──────────────────────────────────────────────────────────
-
-class _LoadMoreButton extends StatelessWidget {
-  final bool isLoading;
-  final VoidCallback onTap;
-
-  const _LoadMoreButton({required this.isLoading, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: isLoading ? null : onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: AppDimensions.md),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: isLoading
-            ? const Center(
-                child: SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.primary,
-                  ),
-                ),
-              )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.expand_more_rounded,
-                      size: 18, color: AppColors.primary),
-                  const SizedBox(width: AppDimensions.xs),
-                  Text(
-                    'Load More Orders',
-                    style: AppTextStyles.bodyMedium.copyWith(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
       ),
     );
   }

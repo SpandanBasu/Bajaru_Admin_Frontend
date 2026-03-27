@@ -15,22 +15,31 @@ final _procurementServiceProvider = Provider<AdminProcurementService>(
 // ── Selected warehouse & date filters ─────────────────────────────────────────
 
 final procurementSelectedWarehouseProvider = StateProvider<Warehouse?>((ref) => null);
-final procurementSelectedDateProvider = StateProvider<DateTime?>((ref) => null);
 
-// ── Filter ────────────────────────────────────────────────────────────────────
+/// Delivery date filter; defaults to today (date only, local).
+final procurementSelectedDateProvider = StateProvider<DateTime>((ref) {
+  final n = DateTime.now();
+  return DateTime(n.year, n.month, n.day);
+});
+
+// ── Filters ───────────────────────────────────────────────────────────────────
 
 enum ProcurementSelectionType { none, pendingOnly, procuredOnly, mixed }
+enum ProcurementStatusFilter { all, pending, done }
+
+final procurementStatusFilterProvider =
+    StateProvider<ProcurementStatusFilter>((ref) => ProcurementStatusFilter.all);
 
 // ── Notifier ──────────────────────────────────────────────────────────────────
 
 class ProcurementNotifier extends StateNotifier<List<ProcurementItem>> {
-  ProcurementNotifier(this._service) : super([]) {
-    refresh();
-  }
+  ProcurementNotifier(this._service) : super([]);
 
   final AdminProcurementService _service;
+  DateTime _deliveryDate = DateTime.now();
 
   Future<void> refresh({String? warehouseId, DateTime? deliveryDate}) async {
+    _deliveryDate = deliveryDate ?? DateTime.now();
     try {
       final result = await _service.getItems(
           warehouseId: warehouseId, deliveryDate: deliveryDate);
@@ -46,14 +55,19 @@ class ProcurementNotifier extends StateNotifier<List<ProcurementItem>> {
   }
 
   void setStatus(String id, ProcurementStatus status) {
+    final item = state.firstWhere((i) => i.id == id);
     state = [
-      for (final item in state)
-        if (item.id == id) item.copyWith(status: status) else item,
+      for (final i in state)
+        if (i.id == id) i.copyWith(status: status) else i,
     ];
+    _persistStatus(item.productId, item.warehouseId, status);
   }
 
-  /// Marks checked pending/urgent items as Done, unchecks all selected.
+  /// Marks checked pending items as Done, unchecks all selected.
   void markSelectedProcured() {
+    final toPersist = state
+        .where((i) => i.isChecked && i.status != ProcurementStatus.done)
+        .toList();
     state = [
       for (final item in state)
         if (item.isChecked && item.status != ProcurementStatus.done)
@@ -63,10 +77,16 @@ class ProcurementNotifier extends StateNotifier<List<ProcurementItem>> {
         else
           item,
     ];
+    for (final item in toPersist) {
+      _persistStatus(item.productId, item.warehouseId, ProcurementStatus.done);
+    }
   }
 
   /// Resets checked Done items back to Pending, unchecks all selected.
   void markSelectedUnprocured() {
+    final toPersist = state
+        .where((i) => i.isChecked && i.status == ProcurementStatus.done)
+        .toList();
     state = [
       for (final item in state)
         if (item.isChecked && item.status == ProcurementStatus.done)
@@ -76,6 +96,19 @@ class ProcurementNotifier extends StateNotifier<List<ProcurementItem>> {
         else
           item,
     ];
+    for (final item in toPersist) {
+      _persistStatus(item.productId, item.warehouseId, ProcurementStatus.pending);
+    }
+  }
+
+  void _persistStatus(
+      String productId, String warehouseId, ProcurementStatus status) {
+    _service.setItemStatus(
+      productId:    productId,
+      warehouseId:  warehouseId,
+      deliveryDate: _deliveryDate,
+      status:       status == ProcurementStatus.done ? 'DONE' : 'PENDING',
+    );
   }
 }
 
@@ -90,16 +123,29 @@ final procurementProvider =
   }
 
   ref.listen<Warehouse?>(procurementSelectedWarehouseProvider, (_, __) => _reload());
-  ref.listen<DateTime?>(procurementSelectedDateProvider, (_, __) => _reload());
+  ref.listen<DateTime>(procurementSelectedDateProvider, (_, __) => _reload());
+  _reload();
   return notifier;
 });
 
 // ── Derived providers ─────────────────────────────────────────────────────────
 
-// Server already filters items by warehouseId when procurementSelectedWarehouseProvider
-// is set (notifier.refresh re-fetches), so no additional client-side filter needed.
 final filteredProcurementProvider = Provider<List<ProcurementItem>>((ref) {
-  return ref.watch(procurementProvider);
+  final all    = ref.watch(procurementProvider);
+  final filter = ref.watch(procurementStatusFilterProvider);
+
+  final filtered = switch (filter) {
+    ProcurementStatusFilter.all     => all,
+    ProcurementStatusFilter.pending => all.where((i) => i.status != ProcurementStatus.done).toList(),
+    ProcurementStatusFilter.done    => all.where((i) => i.status == ProcurementStatus.done).toList(),
+  };
+
+  // Always sort pending first, done last.
+  return [...filtered]..sort((a, b) {
+    final aRank = a.status == ProcurementStatus.done ? 1 : 0;
+    final bRank = b.status == ProcurementStatus.done ? 1 : 0;
+    return aRank.compareTo(bRank);
+  });
 });
 
 final procurementSelectionTypeProvider = Provider((ref) {
@@ -112,14 +158,23 @@ final procurementSelectionTypeProvider = Provider((ref) {
   return ProcurementSelectionType.pendingOnly;
 });
 
-final procurementSummaryProvider = Provider((ref) {
-  final items = ref.watch(filteredProcurementProvider);
+// Chip label counts always reflect the full (unfiltered) list.
+final procurementChipCountsProvider = Provider((ref) {
+  final all = ref.watch(procurementProvider);
   return (
-    totalInStock:   items.fold<double>(0, (s, i) => s + i.inStock),
-    totalNeeded:    items.fold<double>(0, (s, i) => s + i.neededToday),
-    totalToProcure: items.fold<double>(0, (s, i) => s + i.toProcure),
-    itemCount:      items.length,
-    orderCount:     items.fold<int>(0, (s, i) => s + i.orderCount),
-    procuredCount:  items.where((i) => i.status == ProcurementStatus.done).length,
+    all:     all.length,
+    pending: all.where((i) => i.status != ProcurementStatus.done).length,
+    done:    all.where((i) => i.status == ProcurementStatus.done).length,
+  );
+});
+
+// Summary stats also from the full list so the card is always accurate.
+final procurementSummaryProvider = Provider((ref) {
+  final items = ref.watch(procurementProvider);
+  return (
+    totalNeeded:   items.fold<double>(0, (s, i) => s + i.neededToday),
+    itemCount:     items.length,
+    orderCount:    items.fold<int>(0, (s, i) => s + i.orderCount),
+    procuredCount: items.where((i) => i.status == ProcurementStatus.done).length,
   );
 });

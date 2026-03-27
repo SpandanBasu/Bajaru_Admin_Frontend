@@ -1,5 +1,5 @@
 import '../api/admin_api_client.dart';
-import '../api/admin_api_endpoints.dart';
+import '../api/api_paths.dart';
 import '../models/delivery_order.dart';
 import '../models/rider.dart';
 import '../models/rider_detail.dart';
@@ -10,25 +10,25 @@ class AdminRidersService {
   final AdminApiClient _client;
 
   Future<List<Rider>> getRiders() async {
-    final list = await _client.getList(AdminApiEndpoints.riders);
+    final list = await _client.getList(ApiPaths.riders);
     return list.cast<Map<String, dynamic>>().map(Rider.fromJson).toList();
   }
 
   Future<RiderDetail> getRiderDetail(String riderId) async {
-    final data = await _client.get(AdminApiEndpoints.riderDetails(riderId));
+    final data = await _client.get(ApiPaths.riderDetails(riderId));
     return RiderDetail.fromJson(data);
   }
 
   Future<Rider> setOnlineStatus(String riderId, {required bool online}) async {
     final data = await _client.patch(
-      AdminApiEndpoints.riderOnlineStatus(riderId),
+      ApiPaths.riderOnlineStatus(riderId),
       {'online': online},
     );
     return Rider.fromJson(data);
   }
 
   Future<List<RouteBatch>> getRouteBatches() async {
-    final list = await _client.getList(AdminApiEndpoints.routeBatches);
+    final list = await _client.getList(ApiPaths.routeBatches);
     return list
         .cast<Map<String, dynamic>>()
         .map(RouteBatch.fromJson)
@@ -37,7 +37,7 @@ class AdminRidersService {
 
   Future<List<DeliveryOrder>> getActiveDeliveries() async {
     final list = await _client.getList(
-      AdminApiEndpoints.deliveries,
+      ApiPaths.deliveries,
       queryParameters: const {'status': 'outForDelivery'},
     );
     return list
@@ -51,7 +51,7 @@ class AdminRidersService {
     double? estimatedHours,
     List<String>? orderIds,
   }) async {
-    final data = await _client.post(AdminApiEndpoints.routeBatches, {
+    final data = await _client.post(ApiPaths.routeBatches, {
       'name': name,
       if (estimatedHours != null) 'estimatedHours': estimatedHours,
       if (orderIds != null) 'orderIds': orderIds,
@@ -61,7 +61,7 @@ class AdminRidersService {
 
   Future<RouteBatch> assignRider(String batchId, String riderId) async {
     final data = await _client.patch(
-      AdminApiEndpoints.routeBatchAssign(batchId),
+      ApiPaths.routeBatchAssign(batchId),
       {'riderId': riderId},
     );
     return RouteBatch.fromJson(data);
@@ -69,7 +69,7 @@ class AdminRidersService {
 
   Future<RouteBatch> unassignRider(String batchId) async {
     final data = await _client.delete(
-      AdminApiEndpoints.routeBatchAssign(batchId),
+      ApiPaths.routeBatchAssign(batchId),
     );
     return RouteBatch.fromJson(data);
   }

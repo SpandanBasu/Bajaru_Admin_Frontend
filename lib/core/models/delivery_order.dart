@@ -1,6 +1,6 @@
 import 'package:intl/intl.dart';
 
-enum DeliveryStatus { pending, outForDelivery, delivered, rejected }
+enum DeliveryStatus { pending, outForDelivery, delivered, rejected, cancelled }
 
 extension DeliveryStatusExt on DeliveryStatus {
   String get label => switch (this) {
@@ -8,6 +8,7 @@ extension DeliveryStatusExt on DeliveryStatus {
         DeliveryStatus.outForDelivery => 'Out for Delivery',
         DeliveryStatus.delivered      => 'Delivered',
         DeliveryStatus.rejected       => 'Rejected',
+        DeliveryStatus.cancelled      => 'Cancelled',
       };
 }
 
@@ -55,8 +56,12 @@ class DeliveryOrder {
   final double? addressLatitude;
   final double? addressLongitude;
   final int itemCount;
-  final int amount;      // subtotal
+  final int amount;           // subtotal (product lines only)
   final int deliveryFee;
+  final int bagCharge;        // bag charge (0 when not charged)
+  final int couponDiscount;   // discount amount (0 when no coupon)
+  final String? couponCode;   // coupon code used (null if none)
+  final int finalTotal;       // authoritative total from orders table
   final bool isCOD;
   final DeliveryStatus status;
   final String? riderId;
@@ -73,6 +78,7 @@ class DeliveryOrder {
   final String? proofImageUrl;   // signed Supabase URL for proof photo
   final double? customerRating;  // 4.0
   final DateTime? placedAt;
+  final DateTime? deliveryDate;   // scheduled delivery date chosen by the customer
   final String? rejectionReason;
   final DateTime? rejectedAt;
 
@@ -88,6 +94,10 @@ class DeliveryOrder {
     required this.itemCount,
     required this.amount,
     required this.deliveryFee,
+    required this.bagCharge,
+    required this.couponDiscount,
+    this.couponCode,
+    required this.finalTotal,
     required this.isCOD,
     required this.status,
     this.riderId,
@@ -103,19 +113,22 @@ class DeliveryOrder {
     this.proofImageUrl,
     this.customerRating,
     this.placedAt,
+    this.deliveryDate,
     this.rejectionReason,
     this.rejectedAt,
   });
 
-  int get total => amount + deliveryFee;
+  /// Authoritative bill total from the orders table.
+  int get total => finalTotal;
 
   factory DeliveryOrder.fromJson(Map<String, dynamic> json) {
     final statusStr = json['status'] as String? ?? 'CONFIRMED';
     final status = switch (statusStr) {
-      'OUT_FOR_DELIVERY' => DeliveryStatus.outForDelivery,
-      'DELIVERED'        => DeliveryStatus.delivered,
-      'REJECTED'         => DeliveryStatus.rejected,
-      _                  => DeliveryStatus.pending,
+      'OUT_FOR_DELIVERY'        => DeliveryStatus.outForDelivery,
+      'DELIVERED'               => DeliveryStatus.delivered,
+      'REJECTED'                => DeliveryStatus.rejected,
+      'CANCELLED' || 'CANCELED' => DeliveryStatus.cancelled,
+      _                         => DeliveryStatus.pending,
     };
 
     final placedAt = json['placedAt'] != null
@@ -147,7 +160,14 @@ class DeliveryOrder {
       amount: (json['amount'] as num?)?.toInt() ??
               (json['subTotal'] as num?)?.toInt() ?? 0,
       deliveryFee: (json['deliveryFee'] as num?)?.toInt() ?? 0,
-      isCOD: json['isCOD'] as bool? ?? false,
+      bagCharge: (json['bagCharge'] as num?)?.toInt() ?? 0,
+      couponDiscount: (json['couponDiscount'] as num?)?.toInt() ?? 0,
+      couponCode: json['couponCode'] as String?,
+      finalTotal: (json['finalTotal'] as num?)?.toInt() ??
+          (json['amount'] as num?)?.toInt() ??
+          (json['subTotal'] as num?)?.toInt() ?? 0,
+      // List API returns `cod`; detail returns `isCOD` — accept both.
+      isCOD: (json['isCOD'] as bool?) ?? (json['cod'] as bool?) ?? false,
       status: status,
       riderId: json['riderId'] as String?,
       time: DateFormat('h:mm a').format(placedAt),
@@ -167,6 +187,9 @@ class DeliveryOrder {
           json['proof_image_url'] as String?,
       customerRating: null, // not stored in backend yet
       placedAt: placedAt,
+      deliveryDate: json['deliveryDate'] != null
+          ? DateTime.parse(json['deliveryDate'] as String).toLocal()
+          : null,
       rejectionReason: json['rejectionReason'] as String?,
       rejectedAt: json['rejectedAt'] != null
           ? DateTime.parse(json['rejectedAt'] as String).toLocal()

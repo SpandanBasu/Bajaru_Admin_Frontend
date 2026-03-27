@@ -1,5 +1,5 @@
 import '../api/admin_api_client.dart';
-import '../api/admin_api_endpoints.dart';
+import '../api/api_paths.dart';
 import '../models/delivery_order.dart';
 
 class AdminDeliveriesService {
@@ -11,7 +11,7 @@ class AdminDeliveriesService {
     String? warehouseId,
     DateTime? deliveryDate,
     int page = 0,
-    int size = 50,
+    int size = 100,
   }) async {
     final date = deliveryDate ?? DateTime.now();
     final dateStr =
@@ -19,7 +19,7 @@ class AdminDeliveriesService {
         '${date.month.toString().padLeft(2, '0')}-'
         '${date.day.toString().padLeft(2, '0')}';
     final data = await _client.get(
-      AdminApiEndpoints.deliveries,
+      ApiPaths.deliveries,
       queryParameters: {
         if (status != null) 'status': status,
         if (warehouseId != null) 'warehouseId': warehouseId,
@@ -33,7 +33,7 @@ class AdminDeliveriesService {
 
   Future<DeliveryOrder> getDetail(String orderId) async {
     final data =
-        await _client.get(AdminApiEndpoints.deliveryDetail(orderId));
+        await _client.get(ApiPaths.deliveryDetail(orderId));
     return DeliveryOrder.fromJson(data);
   }
 }

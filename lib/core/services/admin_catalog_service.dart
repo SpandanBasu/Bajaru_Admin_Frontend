@@ -1,5 +1,5 @@
 import '../api/admin_api_client.dart';
-import '../api/admin_api_endpoints.dart';
+import '../api/api_paths.dart';
 import '../models/catalog_product.dart';
 import '../models/warehouse.dart';
 
@@ -10,44 +10,40 @@ class AdminCatalogService {
 
   /// Fetches all active warehouses for catalog warehouse selection.
   Future<List<Warehouse>> getWarehouses() async {
-    final list = await _client.getList(AdminApiEndpoints.adminWarehouses);
+    final list = await _client.getList(ApiPaths.adminWarehouses);
     return list
         .map((e) => Warehouse.fromJson(e as Map<String, dynamic>))
         .where((w) => w.active)
         .toList();
   }
 
-  /// Updates stock quantity and selling price for [productId] at [warehouseId].
-  /// Preserves the existing MRP — only sellingPrice and quantity are changed.
+  /// Creates or updates stock, MRP and selling price for [productId] at [warehouseId].
   Future<void> updateInventory(
       String productId, String warehouseId, int quantity, double mrp, double sellingPrice) async {
-    await _client.put(
-      AdminApiEndpoints.productInventory(productId),
+    await _client.post(
+      ApiPaths.inventoryUpsert,
       {
-        'entries': [
-          {
-            'warehouseId': warehouseId,
-            'quantityAvailable': quantity,
-            'mrp': mrp,
-            'sellingPrice': sellingPrice,
-          }
-        ]
+        'productId': productId,
+        'warehouseId': warehouseId,
+        'quantity': quantity,
+        'mrp': mrp,
+        'sellingPrice': sellingPrice,
       },
     );
   }
 
-  /// Toggles the availability of [productId] for [warehouseId].
+  /// Atomically toggles the availability of [productId] for [warehouseId].
   /// Returns the new active state: `true` = available, `false` = hidden from market.
   Future<bool> toggleInventoryAvailability(
       String productId, String warehouseId) async {
     final data = await _client.patch(
-      AdminApiEndpoints.inventoryToggle(productId, warehouseId),
+      ApiPaths.inventoryToggle(productId, warehouseId),
     );
     return data['active'] as bool? ?? false;
   }
 
-  /// Fetches all products with their inventory per warehouse.
-  /// Filter by selected warehouse in the UI.
+  /// Fetches all products with their per-warehouse inventory embedded.
+  /// Products come from MongoDB (admin handler); inventory from PostgreSQL (inventory handler).
   Future<List<CatalogProduct>> getCatalogProducts() async {
     final List<Map<String, dynamic>> all = [];
     int page = 0;
@@ -55,7 +51,7 @@ class AdminCatalogService {
 
     while (true) {
       final data = await _client.get(
-        AdminApiEndpoints.catalogProducts,
+        ApiPaths.catalogProducts,
         queryParameters: {'page': page, 'size': size, 'active': true},
       );
       final content = data['content'] as List<dynamic>? ?? [];
@@ -67,6 +63,36 @@ class AdminCatalogService {
       page++;
     }
 
-    return all.map((m) => CatalogProduct.fromAdminJson(m)).toList();
+    if (all.isEmpty) return [];
+
+    final ids = all
+        .map((p) => p['id'] as String? ?? '')
+        .where((id) => id.isNotEmpty)
+        .toList();
+
+    // Single bulk request (avoids N parallel GETs → rate limit 429 on /inventory/admin/{id}).
+    List<Map<String, dynamic>> bulkRows = [];
+    try {
+      final raw = await _client.postList(
+        ApiPaths.inventoryByProducts,
+        {'productIds': ids},
+      );
+      bulkRows = raw.cast<Map<String, dynamic>>();
+    } catch (_) {
+      // Old backend or network — show catalog without inventory rows.
+    }
+
+    final byProduct = <String, List<Map<String, dynamic>>>{};
+    for (final row in bulkRows) {
+      final pid = row['productId'] as String? ?? '';
+      if (pid.isEmpty) continue;
+      byProduct.putIfAbsent(pid, () => []).add(row);
+    }
+
+    return all.map((p) {
+      final id = p['id'] as String? ?? '';
+      final inv = id.isEmpty ? <Map<String, dynamic>>[] : (byProduct[id] ?? []);
+      return CatalogProduct.fromAdminJson({...p, 'inventory': inv});
+    }).toList();
   }
 }

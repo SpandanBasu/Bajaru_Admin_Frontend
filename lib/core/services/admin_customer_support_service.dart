@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../api/admin_api_client.dart';
-import '../api/admin_api_endpoints.dart';
+import '../api/api_paths.dart';
 import '../models/cs_customer.dart';
 
 /// Service layer for all Customer Support API calls.
@@ -17,7 +17,7 @@ class AdminCustomerSupportService {
   Future<List<CustomerSummary>> searchCustomers(String query) async {
     try {
       final list = await _client.getList(
-        AdminApiEndpoints.csSearch,
+        ApiPaths.csSearch,
         queryParameters: {'q': query},
       );
       return list
@@ -35,7 +35,7 @@ class AdminCustomerSupportService {
   /// Fetch the full customer profile: basic info, orders, wallet & transactions.
   Future<CustomerDetail> getCustomerDetail(String userId) async {
     try {
-      final data = await _client.get(AdminApiEndpoints.csCustomer(userId));
+      final data = await _client.get(ApiPaths.csCustomer(userId));
       return CustomerDetail.fromJson(data);
     } catch (e) {
       debugPrint('[CS] getCustomerDetail($userId) failed ($e) — using mock fallback');
@@ -49,11 +49,11 @@ class AdminCustomerSupportService {
   Future<({List<SupportOrder> orders, bool hasMore})> getCustomerOrders(
       String userId, {
     int page = 1,
-    int size = 5,
+    int size = 100,
   }) async {
     try {
       final data = await _client.get(
-        AdminApiEndpoints.csCustomerOrders(userId),
+        ApiPaths.csCustomerOrders(userId),
         queryParameters: {'page': page, 'size': size},
       );
       final rawItems = data['content'] as List? ?? [];
@@ -79,7 +79,7 @@ class AdminCustomerSupportService {
     required String destination, // 'WALLET' | 'ORIGINAL'
   }) async {
     await _client.post(
-      AdminApiEndpoints.csRefund(userId),
+      ApiPaths.csRefund(userId),
       {
         'orderId': orderId,
         'amount': amount,

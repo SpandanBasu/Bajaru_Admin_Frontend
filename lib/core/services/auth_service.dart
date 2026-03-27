@@ -8,7 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import '../exceptions/app_api_exception.dart';
 import '../models/admin_profile.dart';
-import '../network/auth_endpoints.dart';
+import '../api/api_paths.dart';
 import 'auth_api_client.dart';
 
 // ── Truecaller login result ────────────────────────────────────────────────────
@@ -48,13 +48,13 @@ class AuthService {
 
   bool get isTruecallerAvailable => _isTruecallerAvailable;
 
-  // ── POST /api/auth/sms/otp ──────────────────────────────────────────────────
+  // ── POST …/auth/sms/otp (baseUrl + /auth/sms/otp) ───────────────────────────
 
   Future<void> sendOtp(String phoneNumber) async {
     try {
       final res = await _client.post(
-        AuthEndpoints.sendOtp,
-        data: {'phoneNumber': phoneNumber},
+        ApiPaths.sendOtp,
+        data: {'phoneNumber': phoneNumber, 'role': 'ADMIN'},
       );
       if (res.data?['success'] == false) {
         throw AppApiException(
@@ -68,7 +68,7 @@ class AuthService {
     }
   }
 
-  // ── POST /api/auth/sms/verify ───────────────────────────────────────────────
+  // ── POST …/auth/sms/verify ────────────────────────────────────────────────────
 
   Future<({
     String accessToken,
@@ -81,7 +81,7 @@ class AuthService {
   ) async {
     try {
       final res = await _client.post(
-        AuthEndpoints.verifyOtp,
+        ApiPaths.verifyOtp,
         data: {
           'phoneNumber': phoneNumber,
           'otp': otp,
@@ -201,7 +201,7 @@ class AuthService {
     }
     try {
       final res = await _client.post(
-        AuthEndpoints.truecallerLogin,
+        ApiPaths.truecallerLogin,
         data: {
           'code': authorizationCode,
           'codeVerifier': _codeVerifier,
@@ -249,12 +249,19 @@ class AuthService {
     }
     final status = e.response?.statusCode;
     final body = e.response?.data as Map<String, dynamic>?;
+    // Backend error envelope uses {"error": "..."} for all non-2xx responses.
+    final serverMsg = body?['error'] as String? ?? body?['message'] as String?;
     if (status == 401) return const AppApiException('Invalid OTP or session expired.');
+    if (status == 403) {
+      return AppApiException(
+        serverMsg ?? 'This phone number is not authorised to access this app.',
+      );
+    }
     if (status == 400) {
-      return AppApiException(body?['message'] as String? ?? 'Invalid request.');
+      return AppApiException(serverMsg ?? 'Invalid request.');
     }
     return AppApiException(
-      body?['message'] as String? ?? 'Unexpected error (${status ?? 'unknown'}).',
+      serverMsg ?? 'Unexpected error (${status ?? 'unknown'}).',
     );
   }
 }

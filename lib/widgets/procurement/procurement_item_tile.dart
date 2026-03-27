@@ -112,44 +112,12 @@ class ProcurementItemTile extends StatelessWidget {
               ),
             ),
 
-            // ── Row 3: three quantity boxes ───────────────────────────────
-            Row(
-              children: [
-                Expanded(
-                  child: _QtyBox(
-                    value: item.formatQuantity(item.inStock),
-                    label: 'In Stock',
-                    bg: AppColors.neutralLight,
-                    valueColor: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(width: AppDimensions.xs),
-                Expanded(
-                  child: _QtyBox(
-                    value: item.formatQuantity(item.neededToday),
-                    label: 'Needed Today',
-                    bg: AppColors.primaryLight,
-                    valueColor: AppColors.primary,
-                  ),
-                ),
-                const SizedBox(width: AppDimensions.xs),
-                Expanded(
-                  child: _QtyBox(
-                    value: item.formatQuantity(item.toProcure),
-                    label: 'To Procure',
-                    bg: switch (item.status) {
-                      ProcurementStatus.done    => AppColors.successLight,
-                      ProcurementStatus.pending => AppColors.warningLight,
-                      ProcurementStatus.urgent  => AppColors.errorLight,
-                    },
-                    valueColor: switch (item.status) {
-                      ProcurementStatus.done    => AppColors.success,
-                      ProcurementStatus.pending => AppColors.warning,
-                      ProcurementStatus.urgent  => AppColors.error,
-                    },
-                  ),
-                ),
-              ],
+            // ── Row 3: needed today ───────────────────────────────────────
+            _QtyBox(
+              value: item.formatQuantity(item.neededToday),
+              label: 'Needed Today',
+              bg: AppColors.primaryLight,
+              valueColor: AppColors.primary,
             ),
           ],
         ),

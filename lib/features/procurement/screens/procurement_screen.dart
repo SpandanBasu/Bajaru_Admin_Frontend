@@ -15,11 +15,11 @@ class ProcurementScreen extends ConsumerWidget {
   const ProcurementScreen({super.key});
 
   Future<void> _showDateFilterSheet(
-      BuildContext context, WidgetRef ref, DateTime? current) async {
+      BuildContext context, WidgetRef ref, DateTime current) async {
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: current ?? now,
+      initialDate: current,
       firstDate: DateTime(now.year - 1),
       lastDate: DateTime(now.year + 1),
       helpText: 'Filter by Delivery Date',
@@ -35,7 +35,11 @@ class ProcurementScreen extends ConsumerWidget {
       ),
     );
     if (picked != null) {
-      ref.read(procurementSelectedDateProvider.notifier).state = picked;
+      ref.read(procurementSelectedDateProvider.notifier).state = DateTime(
+        picked.year,
+        picked.month,
+        picked.day,
+      );
     }
   }
 
@@ -117,9 +121,9 @@ class ProcurementScreen extends ConsumerWidget {
   }
 
   void _showDownloadSheet(BuildContext context, List<ProcurementItem> items,
-      DateTime? selectedDate, Warehouse? selectedWarehouse) {
-    final date = selectedDate ?? DateTime.now();
-    final dateLabel = DateFormat('EEEE, d MMMM yyyy').format(date);
+      DateTime selectedDate, Warehouse? selectedWarehouse) {
+    final dateLabel =
+        DateFormat('EEEE, d MMMM yyyy').format(selectedDate);
     final warehouseLabel = selectedWarehouse != null
         ? '🏭 ${selectedWarehouse.displayName} (${selectedWarehouse.warehouseId})\n'
         : '';
@@ -141,6 +145,8 @@ class ProcurementScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final items             = ref.watch(filteredProcurementProvider);
     final summary           = ref.watch(procurementSummaryProvider);
+    final chipCounts        = ref.watch(procurementChipCountsProvider);
+    final statusFilter      = ref.watch(procurementStatusFilterProvider);
     final selectionType     = ref.watch(procurementSelectionTypeProvider);
     final selectedWarehouse = ref.watch(procurementSelectedWarehouseProvider);
     final selectedDate      = ref.watch(procurementSelectedDateProvider);
@@ -181,36 +187,18 @@ class ProcurementScreen extends ConsumerWidget {
           children: [
             Text('Procurement', style: AppTextStyles.h2),
             Text(
-              DateFormat('EEEE, d MMMM y').format(DateTime.now()),
+              DateFormat('EEEE, d MMMM y').format(selectedDate),
               style: AppTextStyles.caption
                   .copyWith(color: AppColors.textSecondary),
             ),
           ],
         ),
         actions: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.filter_list_rounded),
-                color: selectedDate != null ? AppColors.primary : AppColors.textSecondary,
-                tooltip: 'Filter by delivery date',
-                onPressed: () => _showDateFilterSheet(context, ref, selectedDate),
-              ),
-              if (selectedDate != null)
-                Positioned(
-                  top: 10,
-                  right: 10,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-            ],
+          IconButton(
+            icon: const Icon(Icons.calendar_today_rounded),
+            color: AppColors.primary,
+            tooltip: 'Delivery date',
+            onPressed: () => _showDateFilterSheet(context, ref, selectedDate),
           ),
           IconButton(
             icon: const Icon(Icons.download_rounded),
@@ -285,56 +273,96 @@ class ProcurementScreen extends ConsumerWidget {
           ),
           const SizedBox(height: AppDimensions.md),
 
-          // ── Active date filter chip ───────────────────────────────────
-          if (selectedDate != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
+          // ── Active delivery date chip (X resets to today) ─────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
                 AppDimensions.base, 0, AppDimensions.base, AppDimensions.sm),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: AppDimensions.sm, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryLight,
-                      borderRadius:
-                          BorderRadius.circular(AppDimensions.radiusFull),
-                      border: Border.all(
-                          color: AppColors.primary.withValues(alpha: 0.4)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.event_rounded,
-                            size: 13, color: AppColors.primary),
-                        const SizedBox(width: 4),
-                        Text(
-                          DateFormat('d MMM yyyy').format(selectedDate),
-                          style: AppTextStyles.caption.copyWith(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        GestureDetector(
-                          onTap: () => ref
-                              .read(procurementSelectedDateProvider.notifier)
-                              .state = null,
-                          child: Icon(Icons.close_rounded,
-                              size: 13, color: AppColors.primary),
-                        ),
-                      ],
-                    ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppDimensions.sm, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryLight,
+                    borderRadius:
+                        BorderRadius.circular(AppDimensions.radiusFull),
+                    border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.4)),
                   ),
-                ],
-              ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.event_rounded,
+                          size: 13, color: AppColors.primary),
+                      const SizedBox(width: 4),
+                      Text(
+                        DateFormat('d MMM yyyy').format(selectedDate),
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      GestureDetector(
+                        onTap: () {
+                          final n = DateTime.now();
+                          ref.read(procurementSelectedDateProvider.notifier).state =
+                              DateTime(n.year, n.month, n.day);
+                        },
+                        child: Icon(Icons.close_rounded,
+                            size: 13, color: AppColors.primary),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
+          ),
 
           // ── Stats card ────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.symmetric(
                 horizontal: AppDimensions.base),
             child: _StatsCard(summary: summary),
+          ),
+          const SizedBox(height: AppDimensions.md),
+
+          // ── Status filter chips ───────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppDimensions.base),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _StatusChip(
+                    label: 'All (${chipCounts.all})',
+                    selected: statusFilter == ProcurementStatusFilter.all,
+                    color: AppColors.primary,
+                    onTap: () => ref
+                        .read(procurementStatusFilterProvider.notifier)
+                        .state = ProcurementStatusFilter.all,
+                  ),
+                  const SizedBox(width: AppDimensions.sm),
+                  _StatusChip(
+                    label: 'Pending (${chipCounts.pending})',
+                    selected: statusFilter == ProcurementStatusFilter.pending,
+                    color: AppColors.warning,
+                    onTap: () => ref
+                        .read(procurementStatusFilterProvider.notifier)
+                        .state = ProcurementStatusFilter.pending,
+                  ),
+                  const SizedBox(width: AppDimensions.sm),
+                  _StatusChip(
+                    label: 'Done (${chipCounts.done})',
+                    selected: statusFilter == ProcurementStatusFilter.done,
+                    color: AppColors.success,
+                    onTap: () => ref
+                        .read(procurementStatusFilterProvider.notifier)
+                        .state = ProcurementStatusFilter.done,
+                  ),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: AppDimensions.md),
 
@@ -422,9 +450,7 @@ class ProcurementScreen extends ConsumerWidget {
 
 class _StatsCard extends StatelessWidget {
   final ({
-    double totalInStock,
     double totalNeeded,
-    double totalToProcure,
     int itemCount,
     int orderCount,
     int procuredCount,
@@ -446,30 +472,10 @@ class _StatsCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Top row: aggregate totals (kg + pcs mixed — see item tiles for details)
-          Row(
-            children: [
-              Expanded(
-                child: _BigStat(
-                  value: _fmtNumber(summary.totalInStock),
-                  label: 'In Stock',
-                ),
-              ),
-              _VertDiv(),
-              Expanded(
-                child: _BigStat(
-                  value: _fmtNumber(summary.totalNeeded),
-                  label: 'Needed Today',
-                ),
-              ),
-              _VertDiv(),
-              Expanded(
-                child: _BigStat(
-                  value: _fmtNumber(summary.totalToProcure),
-                  label: 'To Procure',
-                ),
-              ),
-            ],
+          // Top row: needed today (full width)
+          _BigStat(
+            value: _fmtNumber(summary.totalNeeded),
+            label: 'Needed Today',
           ),
           Divider(
             color: Colors.white.withValues(alpha: 0.2),
@@ -561,6 +567,50 @@ class _VertDiv extends StatelessWidget {
       width: 1,
       height: height,
       color: Colors.white.withValues(alpha: 0.25),
+    );
+  }
+}
+
+// ── Status filter chip ────────────────────────────────────────────────────────
+
+class _StatusChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _StatusChip({
+    required this.label,
+    required this.selected,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppDimensions.base,
+          vertical: AppDimensions.xs + 2,
+        ),
+        decoration: BoxDecoration(
+          color: selected ? color : AppColors.surface,
+          borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+          border: Border.all(
+            color: selected ? color : AppColors.border,
+          ),
+        ),
+        child: Text(
+          label,
+          style: AppTextStyles.captionMedium.copyWith(
+            color: selected ? Colors.white : AppColors.textSecondary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
     );
   }
 }

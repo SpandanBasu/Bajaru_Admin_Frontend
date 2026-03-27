@@ -202,6 +202,22 @@ class AdminApiClient {
     if (data is List) return data;
     return [];
   }
+
+  /// POST whose envelope wraps a JSON array in `data` (e.g. bulk inventory).
+  Future<List<dynamic>> postList(
+    String path, [
+    Map<String, dynamic>? body,
+  ]) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      path,
+      data: body,
+    );
+    final raw = response.data;
+    if (raw == null) return [];
+    final data = raw['data'];
+    if (data is List) return data;
+    return [];
+  }
 }
 
 // ── Provider ──────────────────────────────────────────────────────────────────

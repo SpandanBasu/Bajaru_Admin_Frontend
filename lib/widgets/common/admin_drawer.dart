@@ -108,6 +108,12 @@ class AdminDrawer extends ConsumerWidget {
               selected: currentIndex == 6,
               onTap: () => navigateTo(6),
             ),
+            _DrawerItem(
+              icon: Icons.shield_rounded,
+              label: 'Permissions',
+              selected: currentIndex == 7,
+              onTap: () => navigateTo(7),
+            ),
 
             const Spacer(),
             Divider(color: AppColors.border, height: 1),

@@ -308,10 +308,18 @@ class _ShiftCard extends StatelessWidget {
     } else if (!isOnline && startedAt != null) {
       startTimeStr = _fmtTime(startedAt);
       startStatusStr = 'Recorded';
-      checkOffStr = 'Done';
-      checkOffStatusStr = 'Completed';
-      durationStr = '—';
-      durationStatusStr = 'Ended';
+      final endedAt = detail.shiftEndedAt;
+      if (endedAt != null) {
+        checkOffStr = _fmtTime(endedAt);
+        checkOffStatusStr = 'Completed';
+        durationStr = _fmtDuration(endedAt.difference(startedAt));
+        durationStatusStr = 'Done';
+      } else {
+        checkOffStr = 'Done';
+        checkOffStatusStr = 'Completed';
+        durationStr = '—';
+        durationStatusStr = 'Ended';
+      }
     } else {
       startTimeStr = '—';
       startStatusStr = 'Not started';
@@ -852,7 +860,6 @@ class _ViewAllDeliveriesButton extends ConsumerWidget {
 
   void _viewDeliveries(WidgetRef ref, BuildContext context) {
     ref.read(deliveryFilterProvider.notifier).state = DeliveryFilterStatus.all;
-    ref.read(deliverySelectedPincodeProvider.notifier).state = null;
     ref.read(deliveryOrderIdQueryProvider.notifier).state = '';
     ref.read(deliveryPaymentFilterProvider.notifier).state =
         DeliveryPaymentFilter.all;

@@ -48,17 +48,19 @@ touch .env
 
 Edit `.env`:
 
-| Environment | API_BASE_URL |
+| Environment | API_BASE_URL (scheme + host + `/api/v1`, no path after version) |
 |-------------|--------------|
-| Android emulator | `http://10.0.2.2:8080` |
-| iOS simulator | `http://localhost:8080` |
-| Physical device | `http://<your-LAN-ip>:8080` |
-| Cloudflare tunnel | `https://<subdomain>.trycloudflare.com` |
+| Android emulator | `http://10.0.2.2:8080/api/v1` |
+| iOS simulator | `http://localhost:8080/api/v1` |
+| Physical device | `http://<your-LAN-ip>:8080/api/v1` |
+| Cloudflare tunnel | `https://<subdomain>.trycloudflare.com/api/v1` |
+
+[ApiPaths](lib/core/api/api_paths.dart) holds every route; paths start with `/` so Dio concatenates correctly with the base URL.
 
 Example:
 
 ```
-API_BASE_URL=http://192.168.1.5:8080
+API_BASE_URL=http://192.168.1.5:8080/api/v1
 ```
 
 ### 3. Run the app
@@ -74,7 +76,7 @@ lib/
 ├── app.dart                    # App shell, auth gate, theme
 ├── main.dart                   # Entry point, loads .env
 ├── core/
-│   ├── api/                    # AdminApiClient, AdminApiEndpoints
+│   ├── api/                    # AdminApiClient, ApiPaths (all routes)
 │   ├── constants/              # AppColors, dimensions, text styles
 │   ├── models/                 # DeliveryOrder, CatalogProduct, Rider, etc.
 │   ├── network/                # Auth storage, token service
