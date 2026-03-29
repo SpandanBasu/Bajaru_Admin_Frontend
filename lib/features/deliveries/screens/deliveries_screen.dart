@@ -228,15 +228,15 @@ class _DeliveriesScreenState extends ConsumerState<DeliveriesScreen> {
           Expanded(
             child: RefreshIndicator(
               onRefresh: () async {
-                final warehouseId =
-                    ref.read(activeWarehouseProvider)?.warehouseId;
+                final warehouse = ref.read(activeWarehouseProvider);
+                if (warehouse == null) return;
                 await Future.wait([
                   ref.read(deliveriesProvider.notifier).refresh(
-                        warehouseId: warehouseId,
+                        warehouseId: warehouse.warehouseId,
                         deliveryDate: selectedDate,
                       ),
                   ref.read(allOrdersForCountsProvider.notifier).reload(
-                        warehouseId: warehouseId,
+                        warehouseId: warehouse.warehouseId,
                         deliveryDate: selectedDate,
                       ),
                 ]);

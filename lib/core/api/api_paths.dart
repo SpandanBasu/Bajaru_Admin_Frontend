@@ -55,16 +55,12 @@ abstract final class ApiPaths {
   static const String serviceAreas = '/zones/service-areas';
   static const String adminWarehouses = '/admin/warehouses';
 
-  // Product catalogue (MongoDB documents, via admin handler)
-  static const String catalogProducts = '/admin/inventory/products';
-  static String catalogProduct(String productId) =>
-      '/admin/inventory/products/$productId';
-
   // Per-warehouse inventory (PostgreSQL, via inventory handler)
   static String productInventory(String productId) =>
       '/inventory/admin/$productId';
-  /// Bulk fetch for catalog: one POST replaces N GET [productInventory] calls.
-  static const String inventoryByProducts = '/inventory/admin/by-products';
+  /// Single-call warehouse listing: returns all inventory rows merged with
+  /// product metadata for a given warehouse. No product IDs required from client.
+  static const String inventoryByWarehouse = '/inventory/admin/by-warehouse';
   static const String inventoryUpsert = '/inventory/admin/upsert';
   static String inventoryToggle(String productId, String warehouseId) =>
       '/inventory/admin/$productId/$warehouseId/toggle';

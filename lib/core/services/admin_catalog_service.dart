@@ -42,57 +42,35 @@ class AdminCatalogService {
     return data['active'] as bool? ?? false;
   }
 
-  /// Fetches all products with their per-warehouse inventory embedded.
-  /// Products come from MongoDB (admin handler); inventory from PostgreSQL (inventory handler).
-  Future<List<CatalogProduct>> getCatalogProducts() async {
-    final List<Map<String, dynamic>> all = [];
-    int page = 0;
-    const size = 100;
+  /// Fetches all inventory rows for [warehouseId], each merged with product
+  /// metadata (name, images, category), using the single warehouse listing
+  /// endpoint. Cursor pagination is handled internally — callers receive a
+  /// flat list with no product IDs constructed or passed.
+  Future<List<CatalogProduct>> getCatalogProductsByWarehouse(
+      String warehouseId) async {
+    final List<CatalogProduct> all = [];
+    String cursor = '';
+    const int pageSize = 100;
 
     while (true) {
       final data = await _client.get(
-        ApiPaths.catalogProducts,
-        queryParameters: {'page': page, 'size': size, 'active': true},
+        ApiPaths.inventoryByWarehouse,
+        queryParameters: {
+          'warehouseId': warehouseId,
+          if (cursor.isNotEmpty) 'cursor': cursor,
+          'size': pageSize,
+        },
       );
-      final content = data['content'] as List<dynamic>? ?? [];
-      for (final item in content) {
-        all.add(item as Map<String, dynamic>);
-      }
-      final totalPages = data['totalPages'] as int? ?? 1;
-      if (page >= totalPages - 1) break;
-      page++;
+      final content = (data['content'] as List<dynamic>? ?? [])
+          .map((e) => CatalogProduct.fromWarehouseItem(e as Map<String, dynamic>))
+          .toList();
+      all.addAll(content);
+      final hasMore = data['hasMore'] as bool? ?? false;
+      if (!hasMore) break;
+      cursor = data['nextCursor'] as String? ?? '';
+      if (cursor.isEmpty) break;
     }
 
-    if (all.isEmpty) return [];
-
-    final ids = all
-        .map((p) => p['id'] as String? ?? '')
-        .where((id) => id.isNotEmpty)
-        .toList();
-
-    // Single bulk request (avoids N parallel GETs → rate limit 429 on /inventory/admin/{id}).
-    List<Map<String, dynamic>> bulkRows = [];
-    try {
-      final raw = await _client.postList(
-        ApiPaths.inventoryByProducts,
-        {'productIds': ids},
-      );
-      bulkRows = raw.cast<Map<String, dynamic>>();
-    } catch (_) {
-      // Old backend or network — show catalog without inventory rows.
-    }
-
-    final byProduct = <String, List<Map<String, dynamic>>>{};
-    for (final row in bulkRows) {
-      final pid = row['productId'] as String? ?? '';
-      if (pid.isEmpty) continue;
-      byProduct.putIfAbsent(pid, () => []).add(row);
-    }
-
-    return all.map((p) {
-      final id = p['id'] as String? ?? '';
-      final inv = id.isEmpty ? <Map<String, dynamic>>[] : (byProduct[id] ?? []);
-      return CatalogProduct.fromAdminJson({...p, 'inventory': inv});
-    }).toList();
+    return all;
   }
 }

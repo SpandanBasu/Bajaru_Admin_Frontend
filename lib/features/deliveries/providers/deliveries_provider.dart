@@ -78,17 +78,15 @@ String? _filterStatusParam(DeliveryFilterStatus f) => switch (f) {
     };
 
 class DeliveriesNotifier extends StateNotifier<DeliveriesState> {
-  DeliveriesNotifier(this._service) : super(const DeliveriesState()) {
-    refresh();
-  }
+  DeliveriesNotifier(this._service) : super(const DeliveriesState());
 
   final AdminDeliveriesService _service;
-  String? _warehouseId;
+  String _warehouseId = '';
   DateTime? _deliveryDate;
   DeliveryFilterStatus _filterStatus = DeliveryFilterStatus.all;
 
   Future<void> refresh({
-    String? warehouseId,
+    required String warehouseId,
     DateTime? deliveryDate,
     DeliveryFilterStatus? filterStatus,
   }) async {
@@ -137,17 +135,19 @@ final deliveriesProvider =
   final notifier = DeliveriesNotifier(ref.read(_deliveriesServiceProvider));
 
   void _reload() {
-    final warehouse    = ref.read(activeWarehouseProvider);
+    final warehouse = ref.read(activeWarehouseProvider);
+    if (warehouse == null) return;
     final date         = ref.read(deliverySelectedDateProvider);
     final filterStatus = ref.read(deliveryFilterProvider);
     notifier.refresh(
-      warehouseId:  warehouse?.warehouseId,
+      warehouseId:  warehouse.warehouseId,
       deliveryDate: date,
       filterStatus: filterStatus,
     );
   }
 
-  ref.listen<Warehouse?>(activeWarehouseProvider, (_, __) => _reload());
+  ref.listen<Warehouse?>(activeWarehouseProvider, (_, __) => _reload(),
+      fireImmediately: true);
   ref.listen<DateTime?>(deliverySelectedDateProvider, (_, __) => _reload());
   // Reload from backend when the status tab changes so pagination is correct.
   ref.listen<DeliveryFilterStatus>(deliveryFilterProvider, (_, __) => _reload());
@@ -161,7 +161,7 @@ class _AllOrdersForCountsNotifier extends StateNotifier<List<DeliveryOrder>> {
 
   final AdminDeliveriesService _service;
 
-  Future<void> reload({String? warehouseId, DateTime? deliveryDate}) async {
+  Future<void> reload({required String warehouseId, DateTime? deliveryDate}) async {
     try {
       final result = await _service.getDeliveries(
         status: null,
@@ -181,15 +181,16 @@ final allOrdersForCountsProvider = StateNotifierProvider<
 
   void _reload() {
     final warehouse = ref.read(activeWarehouseProvider);
+    if (warehouse == null) return;
     final date = ref.read(deliverySelectedDateProvider);
     notifier.reload(
-      warehouseId: warehouse?.warehouseId,
+      warehouseId: warehouse.warehouseId,
       deliveryDate: date,
     );
   }
 
-  _reload();
-  ref.listen<Warehouse?>(activeWarehouseProvider, (_, __) => _reload());
+  ref.listen<Warehouse?>(activeWarehouseProvider, (_, __) => _reload(),
+      fireImmediately: true);
   ref.listen<DateTime?>(deliverySelectedDateProvider, (_, __) => _reload());
   return notifier;
 });
@@ -271,7 +272,7 @@ final deliveryCountsProvider = Provider((ref) {
 // ── Order detail ──────────────────────────────────────────────────────────────
 
 final orderDetailProvider =
-    FutureProvider.family<DeliveryOrder, String>((ref, orderId) async {
+    FutureProvider.autoDispose.family<DeliveryOrder, String>((ref, orderId) async {
   final service = ref.read(_deliveriesServiceProvider);
   return service.getDetail(orderId);
 });

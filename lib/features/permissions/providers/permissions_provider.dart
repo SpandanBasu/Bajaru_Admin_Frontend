@@ -84,8 +84,8 @@ class AllowedRidersNotifier
 
   Future<void> refresh() => _load();
 
-  Future<void> add(String phoneNumber, String name) async {
-    final entry = await _service.addRider(phoneNumber, name);
+  Future<void> add(String phoneNumber, String name, String warehouseId) async {
+    final entry = await _service.addRider(phoneNumber, name, warehouseId);
     state.whenData((list) {
       state = AsyncValue.data([...list, entry]);
     });

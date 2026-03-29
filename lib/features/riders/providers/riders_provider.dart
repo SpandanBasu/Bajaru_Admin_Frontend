@@ -20,16 +20,14 @@ final routeBatchesErrorProvider = StateProvider<String?>((_) => null);
 // ── Riders notifier ───────────────────────────────────────────────────────────
 
 class RidersNotifier extends StateNotifier<List<Rider>> {
-  RidersNotifier(this._service, this._setError) : super([]) {
-    refresh();
-  }
+  RidersNotifier(this._service, this._setError) : super([]);
 
   final AdminRidersService _service;
   final void Function(String?) _setError;
 
-  Future<void> refresh() async {
+  Future<void> refresh({required String warehouseId, DateTime? date}) async {
     try {
-      state = await _service.getRiders();
+      state = await _service.getRiders(warehouseId: warehouseId, date: date);
       _setError(null);
     } catch (e) {
       _setError('Failed to load riders');
@@ -68,12 +66,27 @@ class RidersNotifier extends StateNotifier<List<Rider>> {
 }
 
 final ridersProvider =
-    StateNotifierProvider<RidersNotifier, List<Rider>>(
-  (ref) => RidersNotifier(
+    StateNotifierProvider<RidersNotifier, List<Rider>>((ref) {
+  final notifier = RidersNotifier(
     ref.read(_ridersServiceProvider),
     (msg) => ref.read(ridersErrorProvider.notifier).state = msg,
-  ),
-);
+  );
+
+  // fireImmediately: true fires on the current value immediately.
+  // Guard against null so we never make an unbounded call — the first real
+  // fetch only happens once activeWarehouseProvider has a value.
+  ref.listen<Warehouse?>(
+    activeWarehouseProvider,
+    (_, warehouse) {
+      if (warehouse != null) {
+        notifier.refresh(warehouseId: warehouse.warehouseId);
+      }
+    },
+    fireImmediately: true,
+  );
+
+  return notifier;
+});
 
 final onlineRidersProvider = Provider((ref) {
   return ref.watch(ridersProvider).where((r) => r.isOnline).toList();
@@ -153,7 +166,11 @@ final routeBatchesProvider =
 );
 
 final activeDeliveriesProvider = FutureProvider<List<DeliveryOrder>>((ref) async {
-  return ref.read(_ridersServiceProvider).getActiveDeliveries();
+  final warehouse = ref.watch(activeWarehouseProvider);
+  if (warehouse == null) return [];
+  return ref
+      .read(_ridersServiceProvider)
+      .getActiveDeliveries(warehouseId: warehouse.warehouseId);
 });
 
 // ── Shift timer (local UI state only) ────────────────────────────────────────

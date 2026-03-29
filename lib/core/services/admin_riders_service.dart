@@ -9,8 +9,19 @@ class AdminRidersService {
   const AdminRidersService(this._client);
   final AdminApiClient _client;
 
-  Future<List<Rider>> getRiders() async {
-    final list = await _client.getList(ApiPaths.riders);
+  Future<List<Rider>> getRiders({
+    required String warehouseId,
+    DateTime? date,
+  }) async {
+    final d = date ?? DateTime.now();
+    final list = await _client.getList(
+      ApiPaths.riders,
+      queryParameters: {
+        'warehouseId': warehouseId,
+        'date':
+            '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}',
+      },
+    );
     return list.cast<Map<String, dynamic>>().map(Rider.fromJson).toList();
   }
 
@@ -35,10 +46,15 @@ class AdminRidersService {
         .toList();
   }
 
-  Future<List<DeliveryOrder>> getActiveDeliveries() async {
+  Future<List<DeliveryOrder>> getActiveDeliveries({
+    required String warehouseId,
+  }) async {
     final list = await _client.getList(
       ApiPaths.deliveries,
-      queryParameters: const {'status': 'outForDelivery'},
+      queryParameters: {
+        'status': 'outForDelivery',
+        'warehouseId': warehouseId,
+      },
     );
     return list
         .cast<Map<String, dynamic>>()

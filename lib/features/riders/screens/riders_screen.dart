@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/riders_provider.dart';
 import '../../deliveries/providers/deliveries_provider.dart';
+import '../../../core/providers/warehouse_provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/app_dimensions.dart';
@@ -120,8 +121,12 @@ class RidersScreen extends ConsumerWidget {
           Expanded(
             child: RefreshIndicator(
               onRefresh: () async {
+                final warehouse = ref.read(activeWarehouseProvider);
                 await Future.wait([
-                  ref.read(ridersProvider.notifier).refresh(),
+                  if (warehouse != null)
+                    ref.read(ridersProvider.notifier).refresh(
+                          warehouseId: warehouse.warehouseId,
+                        ),
                   ref.refresh(activeDeliveriesProvider.future),
                 ]);
               },

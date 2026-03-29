@@ -8,7 +8,7 @@ class AdminDeliveriesService {
 
   Future<DeliveryPageResult> getDeliveries({
     String? status,
-    String? warehouseId,
+    required String warehouseId,
     DateTime? deliveryDate,
     int page = 0,
     int size = 100,
@@ -22,7 +22,7 @@ class AdminDeliveriesService {
       ApiPaths.deliveries,
       queryParameters: {
         if (status != null) 'status': status,
-        if (warehouseId != null) 'warehouseId': warehouseId,
+        'warehouseId': warehouseId,
         'deliveryDate': dateStr,
         'page': page,
         'size': size,

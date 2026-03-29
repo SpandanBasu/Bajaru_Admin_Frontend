@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/catalog_provider.dart';
 import '../../../core/models/catalog_product.dart';
 import '../../../core/models/warehouse.dart';
+import '../../../core/providers/warehouse_provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/app_dimensions.dart';
@@ -76,7 +77,7 @@ class CatalogScreen extends ConsumerWidget {
                                     ? Icon(Icons.check_circle_rounded, color: AppColors.primary)
                                     : Icon(Icons.circle_outlined, color: AppColors.border),
                                 onTap: () {
-                                  ref.read(selectedWarehouseProvider.notifier).state = w;
+                                  ref.read(activeWarehouseProvider.notifier).select(w);
                                   Navigator.pop(context);
                                 },
                               ),
@@ -136,15 +137,22 @@ class CatalogScreen extends ConsumerWidget {
     final warehousesAsync = ref.watch(catalogWarehousesProvider);
     final category      = ref.watch(catalogCategoryProvider);
     final oosOnly       = ref.watch(catalogOutOfStockOnlyProvider);
-    final warehouse     = ref.watch(selectedWarehouseProvider);
+    final warehouse     = ref.watch(activeWarehouseProvider);
     final notifier      = ref.read(catalogProvider.notifier);
+
+    // Reload the catalog whenever the selected warehouse changes.
+    ref.listen<Warehouse?>(activeWarehouseProvider, (previous, next) {
+      if (next != null && next.warehouseId != previous?.warehouseId) {
+        notifier.loadForWarehouse(next.warehouseId);
+      }
+    });
 
     // Auto-select first warehouse on first load.
     final availableWarehouses = warehousesAsync.asData?.value ?? const <Warehouse>[];
     if (warehouse == null && availableWarehouses.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (ref.read(selectedWarehouseProvider) == null) {
-          ref.read(selectedWarehouseProvider.notifier).state = availableWarehouses.first;
+        if (ref.read(activeWarehouseProvider) == null) {
+          ref.read(activeWarehouseProvider.notifier).select(availableWarehouses.first);
         }
       });
     }
@@ -158,7 +166,9 @@ class CatalogScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             color: AppColors.primary,
-            onPressed: catalogState.isLoading ? null : () => notifier.load(),
+            onPressed: (catalogState.isLoading || warehouse == null)
+                ? null
+                : () => notifier.loadForWarehouse(warehouse.warehouseId),
           ),
           IconButton(
             icon: const Icon(Icons.add_rounded),
@@ -362,7 +372,8 @@ class CatalogScreen extends ConsumerWidget {
             child: RefreshIndicator(
               onRefresh: () async {
                 await Future.wait([
-                  notifier.load(),
+                  if (warehouse != null)
+                    notifier.loadForWarehouse(warehouse.warehouseId),
                   ref.refresh(catalogWarehousesProvider.future),
                 ]);
               },
@@ -391,7 +402,9 @@ class CatalogScreen extends ConsumerWidget {
                                     ),
                                     const SizedBox(height: AppDimensions.sm),
                                     TextButton(
-                                      onPressed: () => notifier.load(),
+                                      onPressed: warehouse != null
+                                          ? () => notifier.loadForWarehouse(warehouse.warehouseId)
+                                          : null,
                                       child: const Text('Retry'),
                                     ),
                                   ],

@@ -8,7 +8,8 @@ import '../../core/constants/app_dimensions.dart';
 class CatalogProductTile extends StatelessWidget {
   final CatalogProduct product;
   final WarehouseProductData? warehouseData;
-  final VoidCallback? onToggleAvailability; // null = locked (OOS or no warehouse)
+  final VoidCallback?
+  onToggleAvailability; // null = locked (OOS or no warehouse)
   final VoidCallback? onTap;
 
   const CatalogProductTile({
@@ -20,20 +21,24 @@ class CatalogProductTile extends StatelessWidget {
   });
 
   Color _categoryColor(ProductCategory c) => switch (c) {
-        ProductCategory.leafy  => AppColors.success,
-        ProductCategory.root   => AppColors.warning,
-        ProductCategory.exotic => const Color(0xFF9C27B0),
-        ProductCategory.all    => AppColors.textSecondary,
-      };
+    ProductCategory.leafy => AppColors.success,
+    ProductCategory.root => AppColors.warning,
+    ProductCategory.exotic => const Color(0xFF9C27B0),
+    ProductCategory.all => AppColors.textSecondary,
+  };
 
   IconData _categoryIcon(ProductCategory c) => switch (c) {
-        ProductCategory.leafy  => Icons.eco_rounded,
-        ProductCategory.root   => Icons.grass_rounded,
-        ProductCategory.exotic => Icons.star_rounded,
-        ProductCategory.all    => Icons.grid_view_rounded,
-      };
+    ProductCategory.leafy => Icons.eco_rounded,
+    ProductCategory.root => Icons.grass_rounded,
+    ProductCategory.exotic => Icons.star_rounded,
+    ProductCategory.all => Icons.grid_view_rounded,
+  };
 
-  void _handleToggleTap(BuildContext context, bool isActive, VoidCallback onConfirm) {
+  void _handleToggleTap(
+    BuildContext context,
+    bool isActive,
+    VoidCallback onConfirm,
+  ) {
     if (isActive) {
       _showOutOfStockConfirmation(context, onConfirm);
     } else {
@@ -41,7 +46,10 @@ class CatalogProductTile extends StatelessWidget {
     }
   }
 
-  void _showOutOfStockConfirmation(BuildContext context, VoidCallback onConfirm) {
+  void _showOutOfStockConfirmation(
+    BuildContext context,
+    VoidCallback onConfirm,
+  ) {
     showDialog<void>(
       context: context,
       barrierDismissible: true,
@@ -63,7 +71,9 @@ class CatalogProductTile extends StatelessWidget {
             onPressed: () => Navigator.of(ctx).pop(),
             child: Text(
               'Cancel',
-              style: AppTextStyles.bodySemiBold.copyWith(color: AppColors.success),
+              style: AppTextStyles.bodySemiBold.copyWith(
+                color: AppColors.success,
+              ),
             ),
           ),
           TextButton(
@@ -73,7 +83,9 @@ class CatalogProductTile extends StatelessWidget {
             },
             child: Text(
               'Confirm',
-              style: AppTextStyles.bodySemiBold.copyWith(color: AppColors.error),
+              style: AppTextStyles.bodySemiBold.copyWith(
+                color: AppColors.error,
+              ),
             ),
           ),
         ],
@@ -83,16 +95,17 @@ class CatalogProductTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final catColor   = _categoryColor(product.category);
-    final isActive   = !product.isOutOfStock && (warehouseData?.isAvailable ?? false);
-    final stockQty   = warehouseData?.stock;
-    final price      = warehouseData?.price;
-    final priceUnit  = warehouseData?.priceUnit;
+    final catColor = _categoryColor(product.category);
+    final isActive =
+        !product.isOutOfStock && (warehouseData?.isAvailable ?? false);
+    final stockQty = warehouseData?.stock;
+    final price = warehouseData?.price;
+    final priceUnit = warehouseData?.priceUnit;
 
-    final stockText  = stockQty != null
-        ? (stockQty % 1 == 0 ? '${stockQty.toInt()} kg' : '$stockQty kg')
-        : '— kg';
-    final priceText  = (price != null && priceUnit != null)
+    final stockText = stockQty != null
+        ? (stockQty % 1 == 0 ? '${stockQty.toInt()} unit' : '$stockQty unit')
+        : '— unit';
+    final priceText = (price != null && priceUnit != null)
         ? '₹${price.toStringAsFixed(0)}/$priceUnit'
         : '—';
 
@@ -131,7 +144,11 @@ class CatalogProductTile extends StatelessWidget {
                         ),
                       ),
                     )
-                  : Icon(_categoryIcon(product.category), color: catColor, size: 22),
+                  : Icon(
+                      _categoryIcon(product.category),
+                      color: catColor,
+                      size: 22,
+                    ),
             ),
             const SizedBox(width: AppDimensions.md),
 
@@ -152,15 +169,17 @@ class CatalogProductTile extends StatelessWidget {
                     children: [
                       Text(
                         '${product.category.label} • $priceText',
-                        style: AppTextStyles.caption
-                            .copyWith(color: AppColors.textSecondary),
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                       if (product.isOutOfStock) ...[
                         const SizedBox(width: 6),
                         Text(
                           '• Out of Stock',
-                          style: AppTextStyles.caption
-                              .copyWith(color: AppColors.error),
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.error,
+                          ),
                         ),
                       ],
                     ],
@@ -179,8 +198,9 @@ class CatalogProductTile extends StatelessWidget {
                       ),
                       Text(
                         '  •  ${product.packageSize}',
-                        style: AppTextStyles.caption
-                            .copyWith(color: AppColors.textSecondary),
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ],
                   ),
@@ -192,7 +212,11 @@ class CatalogProductTile extends StatelessWidget {
             // ── Availability toggle ───────────────────────────────────────
             GestureDetector(
               onTap: onToggleAvailability != null
-                  ? () => _handleToggleTap(context, isActive, onToggleAvailability!)
+                  ? () => _handleToggleTap(
+                      context,
+                      isActive,
+                      onToggleAvailability!,
+                    )
                   : null,
               behavior: HitTestBehavior.opaque,
               child: IgnorePointer(

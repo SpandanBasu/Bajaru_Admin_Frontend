@@ -57,10 +57,11 @@ class AdminAccessService {
         .toList();
   }
 
-  Future<AllowedUserEntry> addRider(String phoneNumber, String name) async {
+  Future<AllowedUserEntry> addRider(
+      String phoneNumber, String name, String warehouseId) async {
     final data = await _client.post(
       ApiPaths.accessRiders,
-      {'phoneNumber': phoneNumber, 'name': name},
+      {'phoneNumber': phoneNumber, 'name': name, 'warehouseId': warehouseId},
     );
     return AllowedUserEntry.fromJson(data);
   }

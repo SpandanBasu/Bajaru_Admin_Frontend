@@ -13,6 +13,7 @@ final warehousesProvider = catalogWarehousesProvider;
 class ActiveWarehouseNotifier extends StateNotifier<Warehouse?> {
   ActiveWarehouseNotifier() : super(null);
   void select(Warehouse? warehouse) => state = warehouse;
+  bool get hasSelection => state != null;
 }
 
 /// The globally selected warehouse.
@@ -25,7 +26,7 @@ final activeWarehouseProvider =
     // Auto-select first warehouse when list loads (only if nothing selected yet)
     ref.listen<AsyncValue<List<Warehouse>>>(warehousesProvider, (_, next) {
       next.whenData((warehouses) {
-        if (notifier.state == null && warehouses.isNotEmpty) {
+        if (!notifier.hasSelection && warehouses.isNotEmpty) {
           notifier.select(warehouses.first);
         }
       });

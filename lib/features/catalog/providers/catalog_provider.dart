@@ -18,29 +18,27 @@ final catalogWarehousesProvider = FutureProvider<List<Warehouse>>((ref) async {
   return service.getWarehouses();
 });
 
-// ── Selected warehouse ────────────────────────────────────────────────────────
-
-final selectedWarehouseProvider = StateProvider<Warehouse?>((ref) => null);
-
 // ── Search & filters ─────────────────────────────────────────────────────────
 
 final catalogSearchProvider = StateProvider<String>((_) => '');
 final catalogCategoryProvider = StateProvider<ProductCategory>((_) => ProductCategory.all);
 final catalogOutOfStockOnlyProvider = StateProvider<bool>((_) => false);
 
-// ── Catalog products (fetched from API, mutable for toggle/update) ─────────────
+// ── Catalog products (warehouse-driven, mutable for toggle/update) ────────────
 
 class CatalogNotifier extends StateNotifier<AsyncValue<List<CatalogProduct>>> {
-  CatalogNotifier(this._service) : super(const AsyncValue.loading()) {
-    load();
-  }
+  // Start with empty data; load is triggered by warehouse selection.
+  CatalogNotifier(this._service) : super(const AsyncValue.data([]));
 
   final AdminCatalogService _service;
 
-  Future<void> load() async {
+  /// Fetches all inventory rows merged with product metadata for [warehouseId].
+  /// Must be called whenever the selected warehouse changes.
+  Future<void> loadForWarehouse(String warehouseId) async {
     state = const AsyncValue.loading();
     try {
-      final products = await _service.getCatalogProducts();
+      final products =
+          await _service.getCatalogProductsByWarehouse(warehouseId);
       state = AsyncValue.data(products);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -123,31 +121,22 @@ final catalogProvider =
   (ref) => CatalogNotifier(ref.read(_catalogServiceProvider)),
 );
 
-// ── Filtered catalog (only products with inventory at selected warehouse) ─────
+// ── Filtered catalog ──────────────────────────────────────────────────────────
+// Data is already scoped to the selected warehouse, so no warehouse filter needed.
 
 final filteredCatalogProvider = Provider<List<CatalogProduct>>((ref) {
   final catalogState = ref.watch(catalogProvider);
   final query = ref.watch(catalogSearchProvider).toLowerCase();
   final category = ref.watch(catalogCategoryProvider);
   final oosOnly = ref.watch(catalogOutOfStockOnlyProvider);
-  final warehouse = ref.watch(selectedWarehouseProvider);
 
   return catalogState.when(
     data: (products) {
       return products.where((p) {
-        // When warehouse selected: only show products with inventory at that warehouse
-        if (warehouse != null && !p.warehouseData.containsKey(warehouse.warehouseId)) {
-          return false;
-        }
         if (category != ProductCategory.all && p.category != category) return false;
         if (query.isNotEmpty && !p.name.toLowerCase().contains(query)) return false;
-        if (oosOnly) {
-          if (p.isOutOfStock) return true;
-          if (warehouse != null) {
-            return !(p.dataFor(warehouse.warehouseId)?.isAvailable ?? true);
-          }
-          return false;
-        }
+        // Data is already scoped to one warehouse; check if that entry is unavailable.
+        if (oosOnly) return p.warehouseData.values.any((d) => !d.isAvailable);
         return true;
       }).toList();
     },

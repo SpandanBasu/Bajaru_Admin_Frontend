@@ -3,7 +3,7 @@ import '../../../core/api/admin_api_client.dart';
 import '../../../core/models/procurement_item.dart';
 import '../../../core/models/warehouse.dart';
 import '../../../core/services/admin_procurement_service.dart';
-import '../../catalog/providers/catalog_provider.dart' show catalogWarehousesProvider;
+import '../../../core/providers/warehouse_provider.dart';
 
 export '../../catalog/providers/catalog_provider.dart' show catalogWarehousesProvider;
 
@@ -13,8 +13,6 @@ final _procurementServiceProvider = Provider<AdminProcurementService>(
     (ref) => AdminProcurementService(ref.watch(adminApiClientProvider)));
 
 // ── Selected warehouse & date filters ─────────────────────────────────────────
-
-final procurementSelectedWarehouseProvider = StateProvider<Warehouse?>((ref) => null);
 
 /// Delivery date filter; defaults to today (date only, local).
 final procurementSelectedDateProvider = StateProvider<DateTime>((ref) {
@@ -117,12 +115,12 @@ final procurementProvider =
   final notifier = ProcurementNotifier(ref.read(_procurementServiceProvider));
 
   void _reload() {
-    final warehouse = ref.read(procurementSelectedWarehouseProvider);
+    final warehouse = ref.read(activeWarehouseProvider);
     final date      = ref.read(procurementSelectedDateProvider);
     notifier.refresh(warehouseId: warehouse?.warehouseId, deliveryDate: date);
   }
 
-  ref.listen<Warehouse?>(procurementSelectedWarehouseProvider, (_, __) => _reload());
+  ref.listen<Warehouse?>(activeWarehouseProvider, (_, __) => _reload());
   ref.listen<DateTime>(procurementSelectedDateProvider, (_, __) => _reload());
   _reload();
   return notifier;

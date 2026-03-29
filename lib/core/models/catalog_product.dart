@@ -34,14 +34,16 @@ class CatalogProduct {
 
   WarehouseProductData? dataFor(String warehouseId) => warehouseData[warehouseId];
 
-  /// From admin API ProductAdminDto.
-  factory CatalogProduct.fromAdminJson(Map<String, dynamic> json) {
-    final id = json['id'] as String? ?? '';
+  /// From the new single-call warehouse listing endpoint.
+  /// Parses one item from GET /inventory/admin/by-warehouse response content[].
+  /// Each item is already a merged inventory + product metadata row for one warehouse.
+  factory CatalogProduct.fromWarehouseItem(Map<String, dynamic> json) {
+    final productId = json['productId'] as String? ?? '';
     final name = json['name'] as String? ?? '';
+    final warehouseId = json['warehouseId'] as String? ?? '';
     final catStr = (json['category'] as String? ?? '').toLowerCase();
     final category = switch (catStr) {
-      'leafy' => ProductCategory.leafy,
-      'leafygreen' => ProductCategory.leafy,
+      'leafy' || 'leafygreen' => ProductCategory.leafy,
       'root' => ProductCategory.root,
       'exotic' => ProductCategory.exotic,
       _ => ProductCategory.all,
@@ -52,32 +54,27 @@ class CatalogProduct {
         .where((e) => e.trim().isNotEmpty)
         .toList();
     final active = json['active'] as bool? ?? true;
-    final invList = json['inventory'] as List<dynamic>? ?? [];
-    final warehouseData = <String, WarehouseProductData>{};
-    for (final inv in invList) {
-      final m = inv as Map<String, dynamic>;
-      final warehouseId = m['warehouseId'] as String? ?? '';
-      if (warehouseId.isEmpty) continue;
-      final invActive = m['active'] as bool? ?? true;
-      final qty = (m['quantityAvailable'] as num?)?.toDouble() ?? 0;
-      final mrp = (m['mrp'] as num?)?.toDouble() ?? 0;
-      final price = (m['sellingPrice'] as num?)?.toDouble() ?? mrp;
-      warehouseData[warehouseId] = WarehouseProductData(
-        price: price,
-        mrp: mrp,
-        priceUnit: packageSize,
-        stock: qty,
-        // isAvailable = active toggle AND has stock
-        isAvailable: invActive && qty > 0,
-      );
-    }
+    final qty = (json['quantityAvailable'] as num?)?.toDouble() ?? 0;
+    final mrp = (json['mrp'] as num?)?.toDouble() ?? 0;
+    final sellingPrice = (json['sellingPrice'] as num?)?.toDouble() ?? mrp;
+    final warehouseData = warehouseId.isNotEmpty
+        ? {
+            warehouseId: WarehouseProductData(
+              price: sellingPrice,
+              mrp: mrp,
+              priceUnit: packageSize,
+              stock: qty,
+              isAvailable: active && qty > 0,
+            ),
+          }
+        : <String, WarehouseProductData>{};
     return CatalogProduct(
-      id: id,
+      id: productId,
       name: name,
       category: category,
       packageSize: packageSize,
       imageUrl: imageUrls.isNotEmpty ? imageUrls.first : null,
-      isOutOfStock: !active,
+      isOutOfStock: false, // inventory-level active flag; admin can always re-enable
       warehouseData: warehouseData,
     );
   }

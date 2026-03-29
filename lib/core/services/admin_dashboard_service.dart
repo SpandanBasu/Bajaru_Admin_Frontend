@@ -6,10 +6,13 @@ class AdminDashboardService {
   const AdminDashboardService(this._client);
   final AdminApiClient _client;
 
-  Future<DashboardStats> getStats({String? date}) async {
+  Future<DashboardStats> getStats({String? date, String? warehouseId}) async {
     final data = await _client.get(
       ApiPaths.dashboardStats,
-      queryParameters: date != null ? {'date': date} : null,
+      queryParameters: {
+        if (date != null) 'date': date,
+        if (warehouseId != null && warehouseId.isNotEmpty) 'warehouseId': warehouseId,
+      },
     );
     return DashboardStats.fromJson(data);
   }

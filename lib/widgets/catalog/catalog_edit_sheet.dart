@@ -92,8 +92,8 @@ class _CatalogEditSheetState extends State<CatalogEditSheet> {
     final priceUnit  = data?.priceUnit ?? '';
     final currentStock = data != null
         ? (data.stock % 1 == 0
-            ? '${data.stock.toInt()} kg'
-            : '${data.stock} kg')
+            ? '${data.stock.toInt()} unit'
+            : '${data.stock} unit')
         : '—';
     final currentSellingPrice = data != null
         ? '₹${data.price.toStringAsFixed(0)}/$priceUnit'
@@ -259,7 +259,7 @@ class _CatalogEditSheetState extends State<CatalogEditSheet> {
                 Expanded(
                   child: _EditableField(
                     controller: _stockCtrl,
-                    suffix: 'kg',
+                    suffix: 'unit',
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),

@@ -6,6 +6,7 @@ class AllowedUserEntry {
     required this.name,
     required this.createdAt,
     this.isSuperAdmin = false,
+    this.warehouseId,
   });
 
   final String id;
@@ -14,6 +15,8 @@ class AllowedUserEntry {
   final DateTime createdAt;
   /// Only meaningful for admin entries. Always false for rider entries.
   final bool isSuperAdmin;
+  /// Only populated for rider entries.
+  final String? warehouseId;
 
   factory AllowedUserEntry.fromJson(Map<String, dynamic> json) {
     return AllowedUserEntry(
@@ -21,6 +24,7 @@ class AllowedUserEntry {
       phoneNumber: json['phoneNumber'] as String? ?? '',
       name: json['name'] as String? ?? '',
       isSuperAdmin: json['isSuperAdmin'] as bool? ?? false,
+      warehouseId: json['warehouseId'] as String?,
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
           DateTime.now(),
     );

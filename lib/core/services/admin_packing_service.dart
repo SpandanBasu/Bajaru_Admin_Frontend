@@ -12,12 +12,14 @@ class AdminPackingService {
     int page = 0,
     int size = 100,
   }) async {
-    final params = <String, dynamic>{'page': page, 'size': size};
+    final date = deliveryDate ?? DateTime.now();
+    final params = <String, dynamic>{
+      'page': page,
+      'size': size,
+      'deliveryDate':
+          '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}',
+    };
     if (warehouseId != null) params['warehouseId'] = warehouseId;
-    if (deliveryDate != null) {
-      params['deliveryDate'] =
-          '${deliveryDate.year}-${deliveryDate.month.toString().padLeft(2, '0')}-${deliveryDate.day.toString().padLeft(2, '0')}';
-    }
     final data = await _client.get(
       ApiPaths.packingOrders,
       queryParameters: params,

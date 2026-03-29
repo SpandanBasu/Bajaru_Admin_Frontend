@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../providers/procurement_provider.dart';
+import '../../../core/providers/warehouse_provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimensions.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -97,7 +98,7 @@ class ProcurementScreen extends ConsumerWidget {
                           ? Icon(Icons.check_circle_rounded, color: AppColors.primary)
                           : Icon(Icons.circle_outlined, color: AppColors.border),
                       onTap: () {
-                        ref.read(procurementSelectedWarehouseProvider.notifier).state = w;
+                        ref.read(activeWarehouseProvider.notifier).select(w);
                         Navigator.pop(context);
                       },
                     ),
@@ -148,18 +149,18 @@ class ProcurementScreen extends ConsumerWidget {
     final chipCounts        = ref.watch(procurementChipCountsProvider);
     final statusFilter      = ref.watch(procurementStatusFilterProvider);
     final selectionType     = ref.watch(procurementSelectionTypeProvider);
-    final selectedWarehouse = ref.watch(procurementSelectedWarehouseProvider);
+    final selectedWarehouse = ref.watch(activeWarehouseProvider);
     final selectedDate      = ref.watch(procurementSelectedDateProvider);
     final warehousesAsync   = ref.watch(catalogWarehousesProvider);
     final notifier          = ref.read(procurementProvider.notifier);
 
-    // Auto-select first warehouse on first load.
+    // Fallback: auto-select first warehouse if global state is still null
+    // (e.g., warehouses finished loading before activeWarehouseProvider was created).
     final availableWarehouses = warehousesAsync.asData?.value ?? const <Warehouse>[];
     if (selectedWarehouse == null && availableWarehouses.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (ref.read(procurementSelectedWarehouseProvider) == null) {
-          ref.read(procurementSelectedWarehouseProvider.notifier).state =
-              availableWarehouses.first;
+        if (ref.read(activeWarehouseProvider) == null) {
+          ref.read(activeWarehouseProvider.notifier).select(availableWarehouses.first);
         }
       });
     }
