@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -741,52 +740,7 @@ class _DeliveryDetailsCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppDimensions.sm),
-            Container(
-              width: double.infinity,
-              height: 140,
-              decoration: BoxDecoration(
-                color: AppColors.neutralLight,
-                borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                child: (order.proofImageUrl != null &&
-                        order.proofImageUrl!.trim().isNotEmpty)
-                    ? Image.network(
-                        order.proofImageUrl!.trim(),
-                        fit: BoxFit.cover,
-                        headers: const {
-                          'Accept': 'image/*',
-                          'User-Agent': 'BajaruAdmin/1.0',
-                        },
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return Center(
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                AppColors.primary,
-                              ),
-                            ),
-                          );
-                        },
-                        errorBuilder: (context, error, stackTrace) {
-                          if (kDebugMode) {
-                            debugPrint(
-                              '[OrderDetail] Proof image failed: url=${order.proofImageUrl} error=$error',
-                            );
-                          }
-                          return _ProofImagePlaceholder(
-                            label: 'Unable to load delivery photo',
-                          );
-                        },
-                      )
-                    : const _ProofImagePlaceholder(
-                        label: 'Delivery photo not available',
-                      ),
-              ),
-            ),
+            _ProofImageCard(imageUrl: order.proofImageUrl),
           ],
 
           // Customer rating
@@ -1019,6 +973,70 @@ class _CallButton extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Proof-of-delivery image ───────────────────────────────────────────────────
+
+/// Renders the proof-of-delivery photo from a Supabase signed URL.
+///
+/// Rules enforced here:
+///   • Only attempts a network load when the URL is a fully-qualified HTTP(S)
+///     address.  Relative paths (dev stubs like "pending_upload/…") are treated
+///     the same as a missing URL and show the "not available" placeholder.
+///   • No custom headers are sent.  Supabase signed URLs are self-authenticating
+///     via the `?token=` query parameter — injecting a custom User-Agent caused
+///     Cloudflare (Supabase's CDN) to silently drop the connection.
+class _ProofImageCard extends StatelessWidget {
+  final String? imageUrl;
+  const _ProofImageCard({required this.imageUrl});
+
+  bool get _isValidUrl {
+    final url = imageUrl?.trim();
+    return url != null &&
+        url.isNotEmpty &&
+        (url.startsWith('https://') || url.startsWith('http://'));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: 140,
+      decoration: BoxDecoration(
+        color: AppColors.neutralLight,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+        child: _isValidUrl
+            ? Image.network(
+                imageUrl!.trim(),
+                fit: BoxFit.cover,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                    ),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  debugPrint(
+                    '[ProofImage] Failed to load: url=$imageUrl\nerror=$error',
+                  );
+                  return const _ProofImagePlaceholder(
+                    label: 'Unable to load delivery photo',
+                  );
+                },
+              )
+            : const _ProofImagePlaceholder(
+                label: 'Delivery photo not available',
+              ),
       ),
     );
   }
